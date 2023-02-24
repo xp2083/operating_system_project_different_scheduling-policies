@@ -51,100 +51,103 @@ struct MidInfo{
 	int prio;
 };
 
-struct scheduler; 
-
-struct function_table {
-	void (*add_to_queue) (struct scheduler *obj, deque<Process*>* queue, ifstream* file);
-	Process* (*get_from_queue) (struct scheduler *obj, deque<Process*>* queue, ifstream* file);
-	int (*get_quantum) (struct scheduler *obj);	     
-};
-
-struct scheduler {
-	struct function_table* funcs;
-	deque<Process*>* run_queue;
-};
-
-struct scheduler_fcfs{
-	struct scheduler base;
+class Scheduler {
 	int quantum;
+	deque<Process*> run_queue;
+public:
+	virtual void add_to_queue (ifstream* file, int is_begin, Process* proc);
+	virtual Process* get_from_queue (ifstream* file);
+	virtual int get_quantum ();
+	virtual void set_quantum (int num);
 };
 
-/*
-Process* fcfs_get_from_queue(struct scheduler* obj, deque<Process*>* run_queue, ifstream* file) {
-	struct scheduler_fcfs *sobj = (struct scheduler_fcfs*)obj; 
-	//printf("%s\n", __FUNCTION__);
-	if (run_queue->size() != 0){
-		Process* tmp = run_queue->front();
-		run_queue->pop_front();
-		return tmp;
-	}
-	else{
-		add_to_queue(obj, run_queue, file);	
-		Process* tmp = run_queue->front();
-		run_queue->pop_front();
-		return tmp;			
-	}
-	return 0;
-}*/
+void Scheduler::add_to_queue (ifstream* file, int is_begin, Process* proc){
+}
 
-void fcfs_add_to_queue(struct scheduler* obj, deque<Process*>* run_queue, ifstream* file) {
-	struct scheduler_fcfs *sobj = (struct scheduler_fcfs*)obj;
-	char tmp [maxVecSize] = {0};
-	file->getline(tmp, sizeof(tmp)); 			
-	const char *delim = " ";
-	Process* proc = (struct Process*)malloc(sizeof(struct Process));
-	char* token = strtok(tmp, delim);
-	proc->state_ts = atoi(token);
-	int cnt = 0;
-	while (token != NULL){
-		token = strtok(NULL, delim);
-		if (cnt == 0){
-			proc->cpu_all_time = atoi(token);
-		}
-		else if (cnt == 1){
-			proc->cpu_max = atoi(token);
-		}
-		else if (cnt == 2){
-			proc->io_max = atoi(token);
-		}
-		cnt++;
-	} 	
-	proc->state = STATE_CREATED;
-	proc->num = lineNum;
-	lineNum++;
-        run_queue->push_back(proc);		
+Process* Scheduler::get_from_queue (ifstream* file){
+	return NULL;
+}
+
+int Scheduler::get_quantum(){
+	return 0;
+}
+
+void Scheduler::set_quantum(int num){
+
+}
+ 
+
+class Scheduler_fcfs: public Scheduler {
+	int quantum;
+	deque<Process*> run_queue;
+	public:
+	~Scheduler_fcfs() {};
+	void add_to_queue (ifstream* file, int is_begin, Process* proc);
+        Process* get_from_queue (ifstream* file);
+	int get_quantum ();
+	void set_quantum (int num);
+};
+
+void Scheduler_fcfs::add_to_queue(ifstream* file, int is_begin, Process* proc) {
+	if (is_begin == 1){
+		char tmp [maxVecSize] = {0};
+		file->getline(tmp, sizeof(tmp)); 			
+		const char *delim = " ";
+		Process* proc = (struct Process*)malloc(sizeof(struct Process));
+		char* token = strtok(tmp, delim);
+		proc->state_ts = atoi(token);
+		int cnt = 0;
+		while (token != NULL){
+			token = strtok(NULL, delim);
+			if (cnt == 0){
+				proc->cpu_all_time = atoi(token);
+			}
+			else if (cnt == 1){
+				proc->cpu_max = atoi(token);
+			}
+			else if (cnt == 2){
+				proc->io_max = atoi(token);
+			}
+			cnt++;
+		} 	
+		proc->state = STATE_CREATED;
+		proc->num = lineNum;
+		lineNum++;
+		run_queue.push_back(proc);	
+	}
+	else {
+		run_queue.push_back(proc);
+
+	}	
 
 	//printf("%s Q=%d\n", __FUNCTION__, obj->run_queue);
 }
-Process* fcfs_get_from_queue(struct scheduler* obj, deque<Process*>* run_queue, ifstream* file) {
-	struct scheduler_fcfs *sobj = (struct scheduler_fcfs*)obj; 
+
+Process* Scheduler_fcfs::get_from_queue(ifstream* file) {
 	//printf("%s\n", __FUNCTION__);
-	if (run_queue->size() != 0){
-		Process* tmp = run_queue->front();
-		run_queue->pop_front();
+	if (run_queue.size() != 0){
+		Process* tmp = run_queue.front();
+		run_queue.pop_front();
 		return tmp;
 	}
 	else{
-		fcfs_add_to_queue(obj, run_queue, file);	
-		Process* tmp = run_queue->front();
-		run_queue->pop_front();
+		add_to_queue(file, 1, NULL);	
+		Process* tmp = run_queue.front();
+		run_queue.pop_front();
 		return tmp;			
 	}
 	return 0;
 }
 
-int fcfs_get_quantum(struct scheduler* obj) {
-        return ((struct scheduler_fcfs*)obj)->quantum;
+int Scheduler_fcfs::get_quantum() {
+        return quantum;
 }
 
-struct function_table fcfs_functions = {
-	.add_to_queue = &fcfs_add_to_queue,
-        .get_from_queue = &fcfs_get_from_queue,
-        .get_quantum = &fcfs_get_quantum
-};
+void Scheduler_fcfs::set_quantum(int num) {
+        quantum = num;
+}
 
-struct scheduler* sched;  // that's the only object we use in global algo
-struct scheduler_fcfs *fcfs_scheduler; // this is specialized
+Scheduler* sched;  // that's the only object we use in global algo
 
 int my_random(int burst, int rand_num){
 	 return 1 + (rand_num % burst); 
@@ -169,7 +172,8 @@ int put_event(deque<Event>* event_queue, Process* process, int old_state, int ra
 		event.new_state	= STATE_READY;
 		event.transition = TRANS_TO_READY;
 		event.timestamp = process->state_ts;
-	}	
+	}
+	event_queue->push_back(event);	
 }
 
 int createInfo (MidInfo* info, int start_time, int process_num, int last_time, int prev_state, int next_state,int cb, int ib, int rem, int prio) {
@@ -234,15 +238,15 @@ void printInfo(MidInfo info){
 	}	
 }
 
+//int simulation(ifstream* file, int rand_num, Scheduler* sched){
 int simulation(ifstream* file, int rand_num){
 	Event* evt;
 	bool CALL_SCHEDULER = true;
-	deque<Process*> run_queue;
 	deque<Event> event_queue;
 	vector<MidInfo> info_vec; 
 	Process* cur_proc; 
         //initialization
-				cur_proc = sched->funcs->get_from_queue(sched, &run_queue, file);
+				cur_proc = sched->get_from_queue(file);
 				if (cur_proc == NULL)
 					return -1;
 				//create event to make this process runnable for same time
@@ -284,7 +288,7 @@ int simulation(ifstream* file, int rand_num){
 				proc->state_prev_prev = STATE_CREATED;
 				proc->state_prev = STATE_READY;
 				proc->state = STATE_RUNNING;
-				run_queue.push_back(proc);
+				sched->add_to_queue(file, 0, proc);
 				} 
 				else {
 				//come from BLOCKED
@@ -324,7 +328,7 @@ int simulation(ifstream* file, int rand_num){
 			//	continue;
 			CALL_SCHEDULER = false;
 			if (cur_proc == NULL){
-				cur_proc = sched->funcs->get_from_queue(sched, &run_queue, file);
+				cur_proc = sched->get_from_queue(file);
 				if (cur_proc == NULL)
 					continue;
 				//create event to make this process runnable for same time?
@@ -347,7 +351,6 @@ int main (int argc, char* argv[])
 	//create scheduler
 	int c;
 	int schedtype = 1;
-
         /*
 	while ((c = getopt(argc,argv,"s:")) != -1 )
         {
@@ -360,12 +363,12 @@ int main (int argc, char* argv[])
 
         switch (schedtype) {
         case 1:
-	    	
-            fcfs_scheduler = (struct scheduler_fcfs*)malloc(sizeof(struct scheduler_fcfs));
-            fcfs_scheduler->base.funcs = &fcfs_functions;
-            fcfs_scheduler->quantum = 100000;
-            sched = (struct scheduler*)fcfs_scheduler;
+		{
+	    Scheduler_fcfs* fcfs_scheduler = new Scheduler_fcfs();  
+	    fcfs_scheduler->set_quantum(1000000);	
+            sched = fcfs_scheduler;
             break;
+		}
         case 2:
             break;
         default:
@@ -391,6 +394,7 @@ int main (int argc, char* argv[])
         rand_file.getline(tmp, sizeof(tmp));	
         int rand_num = atoi(tmp);	
 
+	//simulation(&file, rand_num, &sched);
 	simulation(&file, rand_num);
 
 	return 0; 	
