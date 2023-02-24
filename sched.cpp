@@ -11,17 +11,17 @@
 #include <deque>
 using namespace std;
 
-typedef enum {STATE_CREATED, STATE_READY, STATE_RUNNING , STATE_BLOCKED } process_state_t;
-typedef enum {TRANS_TO_READY, TRANS_TO_PREEMPT, TRANS_TO_RUN, TRANS_TO_BLOCK} procee_strans_state;
+typedef enum {STATE_CREATED=1, STATE_READY=2, STATE_RUNNING=3, STATE_BLOCK=4} process_state_t;
+typedef enum {TRANS_TO_READY=1, TRANS_TO_RUNNING=2, TRANS_TO_BLOCK=3, TRANS_TO_PREEMPT=4} procee_strans_state;
 
-#define maxVecSize 512; 
+#define vecSize 64
+#define maxVecSize 512 
 
-//“int myrandom(int burst) { return 1 + (randvals[ofs] % burst); }”
 int lineNum = 0;
 
 struct Process{
 	int num;
-	int all_cpu_time;
+	int cpu_all_time;
 	int cpu_max;
 	int io_max;
 	int static_prio;
@@ -33,7 +33,7 @@ struct Process{
 
 struct Event{
 	int timestamp;
-	process* process;
+	Process* process;
 	int old_state;
 	int new_state;
 	int transition;	
@@ -54,8 +54,8 @@ struct MidInfo{
 struct scheduler; 
 
 struct function_table {
-	void (*add_to_queue) (struct scheduler *obj, deque<Process*>* queue);
-	process* (*get_from_queue) (struct scheduler *obj, deque<Process*>* queue);
+	void (*add_to_queue) (struct scheduler *obj, deque<Process*>* queue, ifstream* file);
+	Process* (*get_from_queue) (struct scheduler *obj, deque<Process*>* queue, ifstream* file);
 	int (*get_quantum) (struct scheduler *obj);	     
 };
 
@@ -67,45 +67,70 @@ struct scheduler {
 struct scheduler_fcfs{
 	struct scheduler base;
 	int quantum;
-}
+};
 
+/*
 Process* fcfs_get_from_queue(struct scheduler* obj, deque<Process*>* run_queue, ifstream* file) {
 	struct scheduler_fcfs *sobj = (struct scheduler_fcfs*)obj; 
 	//printf("%s\n", __FUNCTION__);
-	if (run_queue.size()! = 0)
-		return run_queue.pop_front();
+	if (run_queue->size() != 0){
+		Process* tmp = run_queue->front();
+		run_queue->pop_front();
+		return tmp;
+	}
 	else{
-		char tmp [maxVecSize] = {0};
-		file.getline(tmp, sizeof(tmp)); 			
-		const char *delim = " ";
-		Process* proc;
-		char* token = strtok(*tmp, delim);
-		proc->state_ts = atoi(token);
-		int cnt = 0;
-		while (!token != NULL){
-			token = strtok(NULL, delim);
-			if (cnt == 0){
-				proc->all_cpu_time = atoi(token);
-			}
-			else if (cnt == 1){
-				proc->cpu_max = atoi(token);
-			}
-			else if (cnt == 2){
-				proc->io_max = atoi(token);
-			}
-			cnt++;
-		} 	
-		proc->state = STATE_READY;
-		proc->num = lineNum;
-		lineNum++;	
-		return proc;			
+		add_to_queue(obj, run_queue, file);	
+		Process* tmp = run_queue->front();
+		run_queue->pop_front();
+		return tmp;			
 	}
 	return 0;
-}
+}*/
 
-void fcfs_add_to_queue(struct scheduler* obj, int a) {
-        struct scheduler_fcfs *sobj = (struct scheduler_fcfs*)obj;
-        printf("%s Q=%d\n", __FUNCTION__, obj->ready_queue);
+void fcfs_add_to_queue(struct scheduler* obj, deque<Process*>* run_queue, ifstream* file) {
+	struct scheduler_fcfs *sobj = (struct scheduler_fcfs*)obj;
+	char tmp [maxVecSize] = {0};
+	file->getline(tmp, sizeof(tmp)); 			
+	const char *delim = " ";
+	Process* proc = (struct Process*)malloc(sizeof(struct Process));
+	char* token = strtok(tmp, delim);
+	proc->state_ts = atoi(token);
+	int cnt = 0;
+	while (token != NULL){
+		token = strtok(NULL, delim);
+		if (cnt == 0){
+			proc->cpu_all_time = atoi(token);
+		}
+		else if (cnt == 1){
+			proc->cpu_max = atoi(token);
+		}
+		else if (cnt == 2){
+			proc->io_max = atoi(token);
+		}
+		cnt++;
+	} 	
+	proc->state = STATE_CREATED;
+	proc->num = lineNum;
+	lineNum++;
+        run_queue->push_back(proc);		
+
+	//printf("%s Q=%d\n", __FUNCTION__, obj->run_queue);
+}
+Process* fcfs_get_from_queue(struct scheduler* obj, deque<Process*>* run_queue, ifstream* file) {
+	struct scheduler_fcfs *sobj = (struct scheduler_fcfs*)obj; 
+	//printf("%s\n", __FUNCTION__);
+	if (run_queue->size() != 0){
+		Process* tmp = run_queue->front();
+		run_queue->pop_front();
+		return tmp;
+	}
+	else{
+		fcfs_add_to_queue(obj, run_queue, file);	
+		Process* tmp = run_queue->front();
+		run_queue->pop_front();
+		return tmp;			
+	}
+	return 0;
 }
 
 int fcfs_get_quantum(struct scheduler* obj) {
@@ -113,41 +138,43 @@ int fcfs_get_quantum(struct scheduler* obj) {
 }
 
 struct function_table fcfs_functions = {
+	.add_to_queue = &fcfs_add_to_queue,
         .get_from_queue = &fcfs_get_from_queue,
-        .add_to_queue = &fcfs_add_to_queue,
         .get_quantum = &fcfs_get_quantum
 };
 
 struct scheduler* sched;  // that's the only object we use in global algo
 struct scheduler_fcfs *fcfs_scheduler; // this is specialized
 
-int my_random(int burst){
-	 return 1 + (randvals[ofs] % burst); 
+int my_random(int burst, int rand_num){
+	 return 1 + (rand_num % burst); 
 }
 
 Event* get_event(deque<Event>* event_queue){
-	return &event_queue->pop_front();
+	Event* tmp = &(event_queue->front());
+	event_queue->pop_front();
+	return tmp;
 }
 
-int put_event(deque<Event>* event_queue, Process* process, int old_state){
+int put_event(deque<Event>* event_queue, Process* process, int old_state, int rand_num){
         Event event;
 	event.process = process;
 	event.old_state = old_state;
 	if (event.old_state == STATE_RUNNING){
-		event.new_state = STATE_BLOCKED;
+		event.new_state = STATE_BLOCK;
 		event.transition = TRANS_TO_BLOCK;
-		event.timestamp = process->state_ts + my_random(process->io_max); 
+		event.timestamp = process->state_ts + my_random(process->io_max, rand_num); 
 	}
-	else if (event.old_state == STATE_BLOCKED){
+	else if (event.old_state == STATE_BLOCK){
 		event.new_state	= STATE_READY;
 		event.transition = TRANS_TO_READY;
 		event.timestamp = process->state_ts;
 	}	
 }
 
-int createInfo (MidInfo* info, int start_time, int processNum, int last_time, int prev_state, int next_state,int cb, int ib, int rem, int prio) {
+int createInfo (MidInfo* info, int start_time, int process_num, int last_time, int prev_state, int next_state,int cb, int ib, int rem, int prio) {
 	info->s_time = start_time;
-	info->process = processNum;
+	info->process = process_num;
  	info->last_time = last_time;
 	info->prev_state = prev_state;
 	info->next_state = next_state;
@@ -159,83 +186,74 @@ int createInfo (MidInfo* info, int start_time, int processNum, int last_time, in
 	return 0;
 }
 
-int simulation(ifstream* file){
+
+void printInfo(MidInfo info){
+	string prev_state = "";
+	string next_state = "";
+	switch(info.prev_state){
+		case STATE_CREATED:
+			prev_state = "CREATED";
+			break;
+		case STATE_READY:
+			prev_state = "READY";
+			break;
+		case STATE_RUNNING:
+			prev_state = "RUNNING";
+			break;
+		case STATE_BLOCK:
+			prev_state = "RUNNING";
+			break;
+	}
+	switch(info.next_state){
+		case STATE_CREATED:
+			prev_state = "CREATED";
+			break;
+		case STATE_READY:
+			prev_state = "READY";
+			break;
+		case STATE_RUNNING:
+			prev_state = "RUNNING";
+			break;
+		case STATE_BLOCK:
+			prev_state = "RUNNING";
+			break;
+	}
+	
+
+	printf("%d %d %d: ", info.s_time, info.process, info.last_time);
+	if (info.rem == 0) 
+		printf("Done\n");
+	else{
+		printf(" %s -> %s", prev_state.c_str(), next_state.c_str());
+	if (info.prev_state == STATE_CREATED | info.prev_state == STATE_BLOCK)
+		printf("\n");
+	else if (info.prev_state == STATE_READY)
+		printf(" cb=%d rem=%d prio=%d\n", info.cb, info.rem, info.prio);
+	else if (info.prev_state == STATE_RUNNING)
+		printf(" ib=%d rem=%d\n", info.ib, info.rem);
+	}	
+}
+
+int simulation(ifstream* file, int rand_num){
 	Event* evt;
 	bool CALL_SCHEDULER = true;
-	deque<Process*>* run_queue;
-	deque<Event>* event_queue;
-	vector<MidInfo>* info_vec; 
+	deque<Process*> run_queue;
+	deque<Event> event_queue;
+	vector<MidInfo> info_vec; 
 	Process* cur_proc; 
-	while (evt = get_event()){
-		Process *proc = evt->process;
-        	int cur_time = evt->timestamp;
-		int transition = evt->transition;
-		int timeInPrev = cur_time - proc->state_ts;
-		delete evt;
-		evt = NULL;
-		
-		switch(transition){
-			case TRANS_TO_READY:
-			//must come from BLOCKED or CREATED 
-			//add to run queue, no event created 
-			 	CALL_SCHEDULER = true;
-				if (proc->state == STATE_CREATED){
-				//come from CREATED
-					proc->state_prev_prev = STATE_CREATED;
-					proc->state_prev = STATE_READY;
-					proc->state = STATE_RUNNING;
-					run_queue -> push_back(proc);
-				} 
-				else {
-				//come from BLOCKED
-		         	//create the info for RUNNING->BLOCKED					      
-		         	MidInfo info;
-				createInfo(&info, cur_time, proc->num, timeInPrev, proc->state_prev, proc->state_prev_prev,0,timeInPrev, rem = proc->cpu_all_time-timeInPrev, proc->prio);
-				info_vec->push_back(info);
- 				proc->cpu_all_time = proc->cpu_all_time-timeInPrev;
-				}
-				break;
-			case TRANS_TO_PREEMPT:
-			//must come from RUNNING 
-			//add to run queue, no event is generated
-				CALL_SCHEDULER = true;
-				break;
-			case TRANS_TO_RUN:
-			//create event for either preempt or block
-				put_event(event_queue, proc, STATE_RUNNING); 
-				//create the info for CREATED->READY/BLOCKED->READY 
-				MidInfo info;
-				createInfo(&info, cur_time, proc->num, timeInPrev, proc->state_prev, proc->state_prev_prev, 0, 0, 0, 0);
-				info_vec->push_back(info);
-				break;
-			case TRANS_TO_BLOCK:
-			//create an event foo when process becomes READY again
-				put_event(event_queue, proc, STATE_BLOCKED);
-				CALL_SCHEDULER = true;
-				//create the info for READY->RUN
-				MidInfo info;
-				createInfo(&info, cur_time, proc->num, timeInPrev, proc->state_prev, proc->state_prev_prev, timeInPrev, 0, proc->all_cpu_time, proc->prio);
-				info_vec->push_back(info);
-				break;
-			}
-		if(CALL_SCHEDULER){
-			if (get_next_event_time() == cur_time)
-			//process next event from event queue
-				continue;
-			CALL_SCHEDULER = false;
-			if (cur_proc == NULL){
-				cur_proc = sched->funcs->get_from_queue(sched, run_queue);
-				if (cur_proc == null)
-					continue;
+        //initialization
+				cur_proc = sched->funcs->get_from_queue(sched, &run_queue, file);
+				if (cur_proc == NULL)
+					return -1;
 				//create event to make this process runnable for same time
 				if (cur_proc->state == STATE_CREATED){
 					Event event;
 					event.timestamp = cur_proc->state_ts;
 					event.process = cur_proc;
 					event.old_state = STATE_CREATED;
-					event.new_state = STATE_CREATED;
+					event.new_state = STATE_READY;
 					event.transition = TRANS_TO_READY;
-					event_queue -> push_back(event);					 
+					event_queue.push_back(event);	
 				}
 				else {
 				//the state will be STATE_RUNNING
@@ -245,25 +263,92 @@ int simulation(ifstream* file){
 					event.old_state = STATE_READY;
 					event.new_state = STATE_RUNNING;
 					event.transition = TRANS_TO_RUNNING;
-					event_queue -> push_back(event);					 
-	
-
+					event_queue.push_back(event);					 
 				}
+	while (evt = get_event(&event_queue)){
+		Process *proc = evt->process;
+        	int cur_time = evt->timestamp;
+		int transition = evt->transition;
+		int timeInPrev = cur_time - proc->state_ts;
+		delete evt;
+		evt = NULL;
+	        MidInfo info;
+	
+		switch(transition){
+			case TRANS_TO_READY:
+			//must come from BLOCKED or CREATED 
+			//add to run queue, no event created 
+			 	CALL_SCHEDULER = true;
+				if (proc->state == STATE_CREATED){
+				//come from CREATED
+				proc->state_prev_prev = STATE_CREATED;
+				proc->state_prev = STATE_READY;
+				proc->state = STATE_RUNNING;
+				run_queue.push_back(proc);
+				} 
+				else {
+				//come from BLOCKED
+		         	//create the info for RUNNING->BLOCKED					      
+				createInfo(&info, cur_time, proc->num, timeInPrev, proc->state_prev, proc->state_prev_prev,0,timeInPrev,proc->cpu_all_time-timeInPrev, proc->static_prio);
+				info_vec.push_back(info);
+ 				printInfo(info);
+				proc->cpu_all_time = proc->cpu_all_time-timeInPrev;
+				}
+				break;
+			case TRANS_TO_PREEMPT:
+			//must come from RUNNING 
+			//add to run queue, no event is generated
+				CALL_SCHEDULER = true;
+				break;
+			case TRANS_TO_RUNNING:
+			//create event for either preempt or block
+				put_event(&event_queue, proc, STATE_RUNNING, rand_num); 
+				//create the info for CREATED->READY/BLOCKED->READY 
+				createInfo(&info, cur_time, proc->num, timeInPrev, proc->state_prev, proc->state_prev_prev, 0, 0, proc->cpu_all_time, 0);
+				info_vec.push_back(info);
+ 				printInfo(info);
+				break;
+			case TRANS_TO_BLOCK:
+			//create an event foo when process becomes READY again
+				put_event(&event_queue, proc, STATE_BLOCK, rand_num);
+				CALL_SCHEDULER = true;
+				//create the info for READY->RUN
+				createInfo(&info, cur_time, proc->num, timeInPrev, proc->state_prev, proc->state_prev_prev, timeInPrev, 0, proc->cpu_all_time, proc->static_prio);
+				info_vec.push_back(info);
+ 				printInfo(info);
+				break;
+			}
+		if(CALL_SCHEDULER){
+			//if (get_next_event_time() == cur_time)
+			//process next event from event queue
+			//	continue;
+			CALL_SCHEDULER = false;
+			if (cur_proc == NULL){
+				cur_proc = sched->funcs->get_from_queue(sched, &run_queue, file);
+				if (cur_proc == NULL)
+					continue;
+				//create event to make this process runnable for same time?
+				//the state will be STATE_RUNNING
+					Event event;
+					event.timestamp = cur_proc->state_ts;
+					event.process = cur_proc;
+					event.old_state = STATE_READY;
+					event.new_state = STATE_RUNNING;
+					event.transition = TRANS_TO_RUNNING;
+					event_queue.push_back(event);					 
 			}
 		}
-		
-
 	}
-
 }
 
 
-int main (int argc, char* argv)
+int main (int argc, char* argv[])
 {
 	//create scheduler
 	int c;
-	int schedtype = 0;
-        
+	int schedtype = 1;
+
+        /*
 	while ((c = getopt(argc,argv,"s:")) != -1 )
         {
                 switch(c) {
@@ -271,13 +356,13 @@ int main (int argc, char* argv)
                         schedtype = atoi(optarg);
                         break;
                 }
-        }
+        }*/
 
         switch (schedtype) {
         case 1:
+	    	
             fcfs_scheduler = (struct scheduler_fcfs*)malloc(sizeof(struct scheduler_fcfs));
             fcfs_scheduler->base.funcs = &fcfs_functions;
-            fcfs_scheduler->base.ready_queue = ?;
             fcfs_scheduler->quantum = 100000;
             sched = (struct scheduler*)fcfs_scheduler;
             break;
@@ -288,14 +373,25 @@ int main (int argc, char* argv)
             exit(1);
         }
 
-	char* filePath = argv[1];
-	ifstream file(filePath);
+        //open input file
+	char* file_path = argv[1];
+	ifstream file(file_path);
 	if (!file.is_open()){
 		printf("no open\n");
 		return -1;	
 	}	
+        //open rand file 
+        char rand_file_path [vecSize]= "./rfile";
+	ifstream rand_file(rand_file_path);
+	if (!rand_file.is_open()){
+		printf("no open\n");
+		return -1;	
+	}
+	char tmp [vecSize] = {0};
+        rand_file.getline(tmp, sizeof(tmp));	
+        int rand_num = atoi(tmp);	
 
-	Simulaton(ifstream* file);
+	simulation(&file, rand_num);
 
 	return 0; 	
 
