@@ -120,7 +120,9 @@ Scheduler* sched;  // that's the only object we use in global algo
 int rand_cnt = 0;
 
 int my_random(int burst, long rand_num[randSize]){
-	 int rand_res = 1 + (rand_num[rand_cnt] % burst);
+	 int rand_res = (rand_num[rand_cnt] % burst) + 1;
+	 //printf("rand_num %lu\n", rand_num[rand_cnt]);
+	 //printf("rand_res %d\n", rand_res);
 	 rand_cnt++;
 	 return rand_res;
 	  
@@ -280,7 +282,7 @@ int simulation(ifstream* file, long rand_num [randSize], deque<Event>* event_que
 				break;
 			case TRANS_TO_RUNNING:
 				//comes from READY
-				//create info for CREATED->READY
+				//create info for CREATED/BLOCKED->READY
 				createInfo(&info, proc->state_ts, proc->num, 0, proc->state_prev_prev, proc->state_prev, 0, 0, proc->cpu_all_time, proc->prio);
 				info_vec.push_back(info);
 				printInfo(info);
@@ -295,7 +297,7 @@ int simulation(ifstream* file, long rand_num [randSize], deque<Event>* event_que
 				proc->state_dura = timeInPrev;
 				break;
 			case TRANS_TO_BLOCK:
-			        //create info for READY->RUNNING	
+			        //create info for READY->RUNNING 	
 				createInfo(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, timeInPrev, 0, proc->cpu_all_time, proc->prio);
 				info_vec.push_back(info);
 				printInfo(info);
@@ -324,7 +326,7 @@ int simulation(ifstream* file, long rand_num [randSize], deque<Event>* event_que
 					continue;
 				//create event to make this process runnable for same time?
 				//the state will be STATE_RUNNING
-				else{
+				else if (cur_proc->state_prev == STATE_CREATED){
 					Event event;
 					event.timestamp = cur_proc->state_ts;
 					event.process = cur_proc;
@@ -332,6 +334,16 @@ int simulation(ifstream* file, long rand_num [randSize], deque<Event>* event_que
 					event.new_state = STATE_RUNNING;
 					event.transition = TRANS_TO_RUNNING;
 					insert_queue(event_queue, event);
+				}
+				else {
+					Event event;
+					event.timestamp = cur_proc->state_ts;
+					event.process = cur_proc;
+					event.old_state = STATE_BLOCK;
+					event.new_state = STATE_READY;
+					 event.transition = TRANS_TO_READY;
+					insert_queue(event_queue, event);
+					
 				}				 
 			}
 		}
@@ -342,7 +354,7 @@ int init_event_proc(ifstream* file, deque<Event>* event_queue){
 	while (file->peek() != EOF){
 		//create new process and add to scheduler process deque
 		char tmp [maxVecSize] = {0};
-		file->getline(tmp, sizeof(tmp)); 			
+		file->getline(tmp, maxVecSize); 			
 		const char *delim = " ";
 		Process* proc = (struct Process*)malloc(sizeof(struct Process));
 		char* token = strtok(tmp, delim);
@@ -435,10 +447,10 @@ int main (int argc, char* argv[])
 	long rand_num [randSize];
 	int cnt = 0;
 	while (rand_file.peek() != EOF){		
-	char tmp [vecSize] = {0};
-        rand_file.getline(tmp, sizeof(tmp));	
-        rand_num[cnt] = atoi(tmp);	
-	cnt++;
+		char tmp [16] = {0};
+        	rand_file.getline(tmp, sizeof(tmp));	
+        	rand_num[cnt] = atol(tmp);	
+		cnt++;
 	}
 	//simulation(&file, rand_num, &sched);
 	simulation(&file, rand_num, &event_queue);
