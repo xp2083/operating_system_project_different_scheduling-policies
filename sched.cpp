@@ -141,13 +141,16 @@ Event* get_event(deque<Event>* event_queue){
 
 int insert_queue(deque<Event>* event_queue, Event eve){
 	deque<Event>::iterator ite = event_queue->begin();
-	while(eve.timestamp > ite->timestamp)
+	while(eve.timestamp > ite->timestamp and ite != event_queue->end())
 		ite++;
 	if (eve.timestamp == ite->timestamp){
-		while(eve.process->num > ite->process->num)
+		while(eve.process->num > ite->process->num and ite != event_queue->end())
 			ite++;
 	}
-	event_queue->insert(ite, eve);
+	if (ite != event_queue->end())
+		event_queue->insert(ite, eve);
+	else
+		event_queue->push_back(eve);
 
 }
 int put_event(deque<Event>* event_queue, Process* process, int old_state, long rand_num[randSize], int cur_time){
@@ -267,17 +270,29 @@ int simulation(ifstream* file, long rand_num [randSize], deque<Event>* event_que
 				} 
 				else {
 					//come from BLOCKED
-					//create info for RUNNING->BLOCK		
+					//create info for RUNNING->BLOCK	
+					if (proc->cpu_all_time > 0) { 	
 					createInfo(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, 0, timeInPrev, proc->cpu_all_time, proc->static_prio);
 					info_vec.push_back(info);
 					printInfo(info);
-					//proc->cpu_all_time = proc->cpu_all_time-timeInPrev;
 
 				      	//for print info
 					proc->state_prev_prev = STATE_BLOCK;
 					proc->state_prev = STATE_READY;
 					proc->state_ts = cur_time;
-					proc->state_dura = timeInPrev; 
+					proc->state_dura = timeInPrev;
+					}else {
+					int trunc_time = 0 - proc->cpu_all_time;
+					proc->state_ts = proc->state_ts - trunc_time;
+					proc->state_dura = proc->state_dura - trunc_time;
+					proc->cpu_all_time = 0;
+					createInfo(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, timeInPrev, 0, proc->cpu_all_time, proc->prio);
+					info_vec.push_back(info);
+					printInfo(info);
+
+					CALL_SCHEDULER = false;					
+
+					}
 
 				}
 				break;
@@ -303,22 +318,23 @@ int simulation(ifstream* file, long rand_num [randSize], deque<Event>* event_que
 				proc->state_dura = timeInPrev;
 				break;
 			case TRANS_TO_BLOCK:
-			        //create info for READY->RUNNING 	
-				createInfo(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, timeInPrev, 0, proc->cpu_all_time, proc->prio);
-				info_vec.push_back(info);
-				printInfo(info);
+					//create info for READY->RUNNING 	
+					createInfo(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, timeInPrev, 0, proc->cpu_all_time, proc->prio);
+					info_vec.push_back(info);
+					printInfo(info);
 
-				//create an event foo when process becomes READY again
-				CALL_SCHEDULER = true;
-				put_event(event_queue, proc, STATE_BLOCK, rand_num, cur_time);
+					//create an event foo when process becomes READY again
+					CALL_SCHEDULER = true;
+					put_event(event_queue, proc, STATE_BLOCK, rand_num, cur_time);
 
-				//set process state for print info
-				proc->cpu_all_time = proc->cpu_all_time - timeInPrev;
-				proc->state_prev = STATE_BLOCK;
-				proc->state_prev_prev = STATE_RUNNING;
-				proc->state_ts = cur_time;
-				proc->state_dura = timeInPrev;
-				cur_proc = NULL;
+					//set process state for print info
+					proc->cpu_all_time = proc->cpu_all_time - timeInPrev;
+					proc->state_prev = STATE_BLOCK;
+					proc->state_prev_prev = STATE_RUNNING;
+					proc->state_ts = cur_time;
+					proc->state_dura = timeInPrev;
+					cur_proc = NULL;
+
 				break;
 		}
 		if(CALL_SCHEDULER){
