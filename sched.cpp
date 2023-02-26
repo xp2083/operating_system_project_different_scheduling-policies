@@ -56,13 +56,17 @@ struct MidInfo{
 };
 
 class Scheduler {
+public:
 	int quantum;
 	deque<Process*> run_queue;
-public:
+	virtual ~Scheduler(){};
 	virtual void add_to_queue (Process* proc);
 	virtual Process* get_from_queue ();
 	virtual int get_quantum ();
 	virtual void set_quantum (int num);
+	int get_queue_size () {
+		return run_queue.size();
+	}
 };
 
 void Scheduler::add_to_queue (Process* proc){
@@ -79,29 +83,30 @@ int Scheduler::get_quantum(){
 void Scheduler::set_quantum(int num){
 
 }
- 
+
+Scheduler* sched;  // that's the only object we use in global algo
+int rand_cnt = 0; 
 
 class Scheduler_fcfs: public Scheduler {
-	int quantum;
-	deque<Process*> run_queue;
 	public:
 	~Scheduler_fcfs() {};
 	void add_to_queue (Process* proc);
         Process* get_from_queue ();
 	int get_quantum ();
 	void set_quantum (int num);
+	int get_queue_size ();
 };
 
 void Scheduler_fcfs::add_to_queue(Process* proc) {
-		run_queue.push_back(proc);
-
+	this->run_queue.push_back(proc);
+	printf("in add_to_queue size of sched queue %d\n", sched->get_queue_size());
 	//printf("%s Q=%d\n", __FUNCTION__, obj->run_queue);
 }
 
 Process* Scheduler_fcfs::get_from_queue() {
 	//printf("%s\n", __FUNCTION__);
-	if (run_queue.size() != 0){
-		Process* tmp = run_queue.front();
+	if (this->run_queue.size() != 0){
+		Process* tmp = this->run_queue.front();
 		//run_queue.pop_front();
 		return tmp;
 	}
@@ -116,8 +121,8 @@ void Scheduler_fcfs::set_quantum(int num) {
         quantum = num;
 }
 
-Scheduler* sched;  // that's the only object we use in global algo
-int rand_cnt = 0;
+//Scheduler* sched;  // that's the only object we use in global algo
+//int rand_cnt = 0;
 
 int my_random(int burst, long rand_num[randSize]){
 	 int rand_res = (rand_num[rand_cnt] % burst) + 1;
@@ -326,7 +331,7 @@ int simulation(ifstream* file, long rand_num [randSize], deque<Event>* event_que
 					continue;
 				//create event to make this process runnable for same time?
 				//the state will be STATE_RUNNING
-				else if (cur_proc->state_prev == STATE_CREATED){
+				else if (cur_proc->state_prev == STATE_READY){
 					Event event;
 					event.timestamp = cur_proc->state_ts;
 					event.process = cur_proc;
@@ -381,6 +386,8 @@ int init_event_proc(ifstream* file, deque<Event>* event_queue){
 		proc->num = lineNum;
 		lineNum++;
 		sched->add_to_queue(proc);
+		printf("size of sched queue %d\n", sched->get_queue_size());
+
 		//create new event and add to event queue 
 		Event event;
 		event.timestamp = proc->state_ts;
@@ -413,7 +420,7 @@ int main (int argc, char* argv[])
         case 1:
 		{
 	    Scheduler_fcfs* fcfs_scheduler = new Scheduler_fcfs();  
-	    fcfs_scheduler->set_quantum(1000000);	
+	    fcfs_scheduler->set_quantum(1000000);
             sched = fcfs_scheduler;
             break;
 		}
@@ -452,7 +459,6 @@ int main (int argc, char* argv[])
         	rand_num[cnt] = atol(tmp);	
 		cnt++;
 	}
-	//simulation(&file, rand_num, &sched);
 	simulation(&file, rand_num, &event_queue);
 
 	return 0; 	
