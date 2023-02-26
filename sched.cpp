@@ -98,16 +98,16 @@ class Scheduler_fcfs: public Scheduler {
 };
 
 void Scheduler_fcfs::add_to_queue(Process* proc) {
-	this->run_queue.push_back(proc);
-	printf("in add_to_queue size of sched queue %d\n", sched->get_queue_size());
+	run_queue.push_back(proc);
+	//printf("in add_to_queue size of sched queue %d\n", sched->get_queue_size());
 	//printf("%s Q=%d\n", __FUNCTION__, obj->run_queue);
 }
 
 Process* Scheduler_fcfs::get_from_queue() {
 	//printf("%s\n", __FUNCTION__);
-	if (this->run_queue.size() != 0){
-		Process* tmp = this->run_queue.front();
-		//run_queue.pop_front();
+	if (run_queue.size() != 0){
+		Process* tmp = run_queue.front();
+		run_queue.pop_front();
 		return tmp;
 	}
 	return NULL;
@@ -193,7 +193,7 @@ void printInfo(MidInfo info){
 			prev_state = "READY";
 			break;
 		case STATE_RUNNING:
-			prev_state = "RUNNING";
+			prev_state = "RUNNG";
 			break;
 		case STATE_BLOCK:
 			prev_state = "BLOCK";
@@ -207,7 +207,7 @@ void printInfo(MidInfo info){
 			next_state = "READY";
 			break;
 		case STATE_RUNNING:
-			next_state = "RUNNING";
+			next_state = "RUNNG";
 			break;
 		case STATE_BLOCK:
 			next_state = "BLOCK";
@@ -256,6 +256,7 @@ int simulation(ifstream* file, long rand_num [randSize], deque<Event>* event_que
 				//must come from BLOCKED or CREATED 
 				//add to run queue, no event created 
 				CALL_SCHEDULER = true;
+				sched->add_to_queue(proc);
 				if (proc->state_prev == STATE_CREATED){
 					//for info print
 					proc->state_prev_prev = STATE_CREATED;
@@ -270,7 +271,7 @@ int simulation(ifstream* file, long rand_num [randSize], deque<Event>* event_que
 					createInfo(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, 0, timeInPrev, proc->cpu_all_time, proc->static_prio);
 					info_vec.push_back(info);
 					printInfo(info);
-					proc->cpu_all_time = proc->cpu_all_time-timeInPrev;
+					//proc->cpu_all_time = proc->cpu_all_time-timeInPrev;
 
 				      	//for print info
 					proc->state_prev_prev = STATE_BLOCK;
@@ -287,8 +288,8 @@ int simulation(ifstream* file, long rand_num [randSize], deque<Event>* event_que
 				break;
 			case TRANS_TO_RUNNING:
 				//comes from READY
-				//create info for CREATED/BLOCKED->READY
-				createInfo(&info, proc->state_ts, proc->num, 0, proc->state_prev_prev, proc->state_prev, 0, 0, proc->cpu_all_time, proc->prio);
+				//create info for CREATED/BLOCK->READY
+				createInfo(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, 0, 0, proc->cpu_all_time, proc->prio);
 				info_vec.push_back(info);
 				printInfo(info);
 
@@ -331,7 +332,7 @@ int simulation(ifstream* file, long rand_num [randSize], deque<Event>* event_que
 					continue;
 				//create event to make this process runnable for same time?
 				//the state will be STATE_RUNNING
-				else if (cur_proc->state_prev == STATE_READY){
+				if (cur_proc->state_prev == STATE_READY){
 					Event event;
 					event.timestamp = cur_proc->state_ts;
 					event.process = cur_proc;
@@ -340,16 +341,6 @@ int simulation(ifstream* file, long rand_num [randSize], deque<Event>* event_que
 					event.transition = TRANS_TO_RUNNING;
 					insert_queue(event_queue, event);
 				}
-				else {
-					Event event;
-					event.timestamp = cur_proc->state_ts;
-					event.process = cur_proc;
-					event.old_state = STATE_BLOCK;
-					event.new_state = STATE_READY;
-					 event.transition = TRANS_TO_READY;
-					insert_queue(event_queue, event);
-					
-				}				 
 			}
 		}
 	}
@@ -385,8 +376,6 @@ int init_event_proc(ifstream* file, deque<Event>* event_queue){
 		proc->prio = 1;
 		proc->num = lineNum;
 		lineNum++;
-		sched->add_to_queue(proc);
-		printf("size of sched queue %d\n", sched->get_queue_size());
 
 		//create new event and add to event queue 
 		Event event;
