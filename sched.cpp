@@ -125,7 +125,7 @@ void Scheduler_fcfs::set_quantum(int num) {
 //int rand_cnt = 0;
 
 int my_random(int burst, long rand_num[randSize]){
-	 int rand_res = (rand_num[rand_cnt] % burst) + 1;
+	 int rand_res = (rand_num[rand_cnt] % (burst+1)) + 1;
 	 //printf("rand_num %lu\n", rand_num[rand_cnt]);
 	 //printf("rand_res %d\n", rand_res);
 	 rand_cnt++;
@@ -150,7 +150,7 @@ int insert_queue(deque<Event>* event_queue, Event eve){
 	else{
 		while(eve.timestamp > ite->timestamp and ite != event_queue->end())
 			ite++;
-		if (eve.timestamp == ite->timestamp){
+		while (eve.timestamp == ite->timestamp){
 			while(eve.process->num > ite->process->num and ite != event_queue->end())
 				ite++;
 		}
@@ -168,6 +168,8 @@ int insert_info(vector<MidInfo>* info_vec, MidInfo info){
 		info_vec->push_back(info);
 	}else{
 		while (info.s_time > ite->s_time and ite != info_vec->end())
+			ite++;
+		while (info.prev_state > ite->prev_state and ite != info_vec->end())
 			ite++;
 		if (ite != info_vec->end())
 			info_vec->insert(ite, info);
@@ -302,7 +304,7 @@ int simulation(ifstream* file, long rand_num [randSize], deque<Event>* event_que
 					createInfo(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, 0, timeInPrev, proc->cpu_all_time, proc->static_prio);
 					//info_vec.push_back(info);
 					insert_info(&info_vec, info);
-					//printInfo(info);
+					printInfo(info);
 
 				      	//for print info
 					proc->state_prev_prev = STATE_BLOCK;
@@ -323,7 +325,7 @@ int simulation(ifstream* file, long rand_num [randSize], deque<Event>* event_que
 				createInfo(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, 0, 0, proc->cpu_all_time, proc->prio);
 				insert_info(&info_vec, info);
 				//info_vec.push_back(info);
-				//printInfo(info);
+				printInfo(info);
 
 				//create event for next step, it is either preempt or block
 				put_event(event_queue, proc, STATE_RUNNING, rand_num, cur_time);
@@ -357,7 +359,7 @@ int simulation(ifstream* file, long rand_num [randSize], deque<Event>* event_que
 						createInfo(&info, cur_time, proc->num, timeInPrev, proc->state_prev_prev, proc->state_prev, timeInPrev, 0, proc->cpu_all_time, proc->prio);
 						insert_info(&info_vec, info);
 					        //info_vec.push_back(info);
-					        //printInfo(info);
+					        printInfo(info);
 					}
 					cur_proc = NULL;
 
@@ -491,7 +493,7 @@ int main (int argc, char* argv[])
 	while (rand_file.peek() != EOF){		
 		char tmp [16] = {0};
         	rand_file.getline(tmp, sizeof(tmp));	
-        	rand_num[cnt] = atol(tmp);	
+        	rand_num[cnt] = atol(tmp);
 		cnt++;
 	}
 	
