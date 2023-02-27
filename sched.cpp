@@ -134,25 +134,49 @@ int my_random(int burst, long rand_num[randSize]){
 }
 
 Event* get_event(deque<Event>* event_queue){
-	Event* tmp = &(event_queue->front());
-	event_queue->pop_front();
-	return tmp;
+	if (event_queue->size() > 0 ){
+		Event* tmp = &(event_queue->front());
+		event_queue->pop_front();
+		return tmp;
+	}else
+		return NULL;
 }
 
 int insert_queue(deque<Event>* event_queue, Event eve){
 	deque<Event>::iterator ite = event_queue->begin();
-	while(eve.timestamp > ite->timestamp and ite != event_queue->end())
-		ite++;
-	if (eve.timestamp == ite->timestamp){
-		while(eve.process->num > ite->process->num and ite != event_queue->end())
-			ite++;
-	}
-	if (ite != event_queue->end())
-		event_queue->insert(ite, eve);
-	else
+	if (event_queue->size() == 0){
 		event_queue->push_back(eve);
-
+	}
+	else{
+		while(eve.timestamp > ite->timestamp and ite != event_queue->end())
+			ite++;
+		if (eve.timestamp == ite->timestamp){
+			while(eve.process->num > ite->process->num and ite != event_queue->end())
+				ite++;
+		}
+		if (ite != event_queue->end())
+			event_queue->insert(ite, eve);
+		else
+			event_queue->push_back(eve);
+	}
+	return 0;
 }
+
+int insert_info(vector<MidInfo>* info_vec, MidInfo info){
+	vector<MidInfo>::iterator ite = info_vec->begin();
+	if (info_vec->size() == 0){
+		info_vec->push_back(info);
+	}else{
+		while (info.s_time > ite->s_time and ite != info_vec->end())
+			ite++;
+		if (ite != info_vec->end())
+			info_vec->insert(ite, info);
+		else
+			info_vec->push_back(info);
+	}
+	return 0;
+}
+
 int put_event(deque<Event>* event_queue, Process* process, int old_state, long rand_num[randSize], int cur_time){
         Event event;
 	event.process = process;
@@ -160,7 +184,11 @@ int put_event(deque<Event>* event_queue, Process* process, int old_state, long r
 	if (event.old_state == STATE_RUNNING){
 		event.new_state = STATE_BLOCK;
 		event.transition = TRANS_TO_BLOCK;
-		event.timestamp = cur_time + my_random(process->cpu_max, rand_num); 
+		int tmp_cb = my_random(process->cpu_max, rand_num);
+		if (process->cpu_all_time >= tmp_cb)
+			event.timestamp = cur_time + tmp_cb;
+		else
+			event.timestamp = cur_time + process->cpu_all_time;		
 	}
 	else if (event.old_state == STATE_BLOCK){
 		event.new_state	= STATE_READY;
@@ -218,9 +246,9 @@ void printInfo(MidInfo info){
 	}
 	
 
-	printf("%d %d %d: ", info.s_time, info.process, info.last_time);
+	printf("%d %d %d:", info.s_time, info.process, info.last_time);
 	if (info.rem == 0) 
-		printf("Done\n");
+		printf(" Done\n");
 	else{
 		printf(" %s -> %s", prev_state.c_str(), next_state.c_str());
 	if (info.prev_state == STATE_CREATED | info.prev_state == STATE_BLOCK)
@@ -271,28 +299,16 @@ int simulation(ifstream* file, long rand_num [randSize], deque<Event>* event_que
 				else {
 					//come from BLOCKED
 					//create info for RUNNING->BLOCK	
-					if (proc->cpu_all_time > 0) { 	
 					createInfo(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, 0, timeInPrev, proc->cpu_all_time, proc->static_prio);
-					info_vec.push_back(info);
-					printInfo(info);
+					//info_vec.push_back(info);
+					insert_info(&info_vec, info);
+					//printInfo(info);
 
 				      	//for print info
 					proc->state_prev_prev = STATE_BLOCK;
 					proc->state_prev = STATE_READY;
 					proc->state_ts = cur_time;
 					proc->state_dura = timeInPrev;
-					}else {
-					int trunc_time = 0 - proc->cpu_all_time;
-					proc->state_ts = proc->state_ts - trunc_time;
-					proc->state_dura = proc->state_dura - trunc_time;
-					proc->cpu_all_time = 0;
-					createInfo(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, timeInPrev, 0, proc->cpu_all_time, proc->prio);
-					info_vec.push_back(info);
-					printInfo(info);
-
-					CALL_SCHEDULER = false;					
-
-					}
 
 				}
 				break;
@@ -305,8 +321,9 @@ int simulation(ifstream* file, long rand_num [randSize], deque<Event>* event_que
 				//comes from READY
 				//create info for CREATED/BLOCK->READY
 				createInfo(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, 0, 0, proc->cpu_all_time, proc->prio);
-				info_vec.push_back(info);
-				printInfo(info);
+				insert_info(&info_vec, info);
+				//info_vec.push_back(info);
+				//printInfo(info);
 
 				//create event for next step, it is either preempt or block
 				put_event(event_queue, proc, STATE_RUNNING, rand_num, cur_time);
@@ -320,19 +337,28 @@ int simulation(ifstream* file, long rand_num [randSize], deque<Event>* event_que
 			case TRANS_TO_BLOCK:
 					//create info for READY->RUNNING 	
 					createInfo(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, timeInPrev, 0, proc->cpu_all_time, proc->prio);
-					info_vec.push_back(info);
-					printInfo(info);
-
-					//create an event foo when process becomes READY again
+					insert_info(&info_vec, info);
+					//info_vec.push_back(info);
+					//printInfo(info);
 					CALL_SCHEDULER = true;
-					put_event(event_queue, proc, STATE_BLOCK, rand_num, cur_time);
+					if (proc->cpu_all_time - timeInPrev > 0){
+						//create an event foo when process becomes READY again
+						put_event(event_queue, proc, STATE_BLOCK, rand_num, cur_time);
 
-					//set process state for print info
-					proc->cpu_all_time = proc->cpu_all_time - timeInPrev;
-					proc->state_prev = STATE_BLOCK;
-					proc->state_prev_prev = STATE_RUNNING;
-					proc->state_ts = cur_time;
-					proc->state_dura = timeInPrev;
+						//set process state for next session
+						proc->cpu_all_time = proc->cpu_all_time - timeInPrev;
+						proc->state_prev = STATE_BLOCK;
+						proc->state_prev_prev = STATE_RUNNING;
+						proc->state_ts = cur_time;
+						proc->state_dura = timeInPrev;
+					}
+					else{
+						proc->cpu_all_time = proc->cpu_all_time - timeInPrev;
+						createInfo(&info, cur_time, proc->num, timeInPrev, proc->state_prev_prev, proc->state_prev, timeInPrev, 0, proc->cpu_all_time, proc->prio);
+						insert_info(&info_vec, info);
+					        //info_vec.push_back(info);
+					        //printInfo(info);
+					}
 					cur_proc = NULL;
 
 				break;
@@ -360,6 +386,11 @@ int simulation(ifstream* file, long rand_num [randSize], deque<Event>* event_que
 			}
 		}
 	}
+	vector<MidInfo>::iterator ite = info_vec.begin();
+	while (ite != info_vec.end()){
+		printInfo(*ite);
+		ite++;
+	} 	
 }
 
 int init_event_proc(ifstream* file, deque<Event>* event_queue){
@@ -447,7 +478,6 @@ int main (int argc, char* argv[])
  	deque<Event> event_queue;       
 	init_event_proc(&file, &event_queue);
 	
-	
         //open rand file 
         char rand_file_path [vecSize]= "./rfile";
 	ifstream rand_file(rand_file_path);
@@ -464,6 +494,7 @@ int main (int argc, char* argv[])
         	rand_num[cnt] = atol(tmp);	
 		cnt++;
 	}
+	
 	simulation(&file, rand_num, &event_queue);
 
 	return 0; 	
