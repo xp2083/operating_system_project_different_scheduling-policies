@@ -18,7 +18,6 @@ typedef enum {TRANS_TO_READY=1, TRANS_TO_RUNNING=2, TRANS_TO_BLOCK=3, TRANS_TO_P
 
 #define vecSize 64
 #define maxVecSize 512
-#define randSize 9999 
 
 int lineNum = 0;
 
@@ -85,7 +84,7 @@ void Scheduler::set_quantum(int num){
 }
 
 Scheduler* sched;  // that's the only object we use in global algo
-int rand_cnt = 0; 
+int rand_cnt = 2; 
 
 class Scheduler_fcfs: public Scheduler {
 	public:
@@ -121,14 +120,17 @@ void Scheduler_fcfs::set_quantum(int num) {
         quantum = num;
 }
 
-//Scheduler* sched;  // that's the only object we use in global algo
-//int rand_cnt = 0;
 
-int my_random(int burst, long rand_num[randSize]){
-	 int rand_res = (rand_num[rand_cnt] % (burst+1)) + 1;
+int my_random(int burst, vector<long>* rand_num, vector<long>::iterator* rand_ite){
+	if (*rand_ite == rand_num->end()){
+		*rand_ite = rand_num->begin();
+	} 	 
+	
+	 int rand_res = ((**rand_ite) % burst) + 1;
 	 //printf("rand_num %lu\n", rand_num[rand_cnt]);
 	 //printf("rand_res %d\n", rand_res);
-	 rand_cnt++;
+	 vector<long>::iterator tmp = (*rand_ite)++;
+	 rand_ite = &tmp;
 	 return rand_res;
 	  
 }
@@ -148,11 +150,13 @@ int insert_queue(deque<Event>* event_queue, Event eve){
 		event_queue->push_back(eve);
 	}
 	else{
-		while(eve.timestamp > ite->timestamp and ite != event_queue->end())
-			ite++;
-		while (eve.timestamp == ite->timestamp){
-			while(eve.process->num > ite->process->num and ite != event_queue->end())
+		while (ite != event_queue->end()){
+			if (eve.timestamp > ite->timestamp) 
 				ite++;
+			else if (eve.timestamp == ite->timestamp and eve.process->num > ite->process->num)
+				ite++;
+			else 
+				break;
 		}
 		if (ite != event_queue->end())
 			event_queue->insert(ite, eve);
@@ -167,26 +171,37 @@ int insert_info(vector<MidInfo>* info_vec, MidInfo info){
 	if (info_vec->size() == 0){
 		info_vec->push_back(info);
 	}else{
-		while (info.s_time > ite->s_time and ite != info_vec->end())
-			ite++;
-		while (info.prev_state > ite->prev_state and ite != info_vec->end())
-			ite++;
+		vector<MidInfo>::iterator ite_end = info_vec->end();
+		ite_end--;
+		if(info.process != ite_end->process){ 
+			while (ite != info_vec->end()){
+				if (info.s_time > ite->s_time)
+					ite++;
+				else if (info.process > ite->process)
+					ite++;
+				else
+					break;
+			}
 		if (ite != info_vec->end())
 			info_vec->insert(ite, info);
 		else
 			info_vec->push_back(info);
+		}
+		else{
+			info_vec->push_back(info);
+		}
 	}
 	return 0;
 }
 
-int put_event(deque<Event>* event_queue, Process* process, int old_state, long rand_num[randSize], int cur_time){
+int put_event(deque<Event>* event_queue, Process* process, int old_state, vector<long>* rand_num, vector<long>::iterator* rand_ite, int cur_time){
         Event event;
 	event.process = process;
 	event.old_state = old_state;
 	if (event.old_state == STATE_RUNNING){
 		event.new_state = STATE_BLOCK;
 		event.transition = TRANS_TO_BLOCK;
-		int tmp_cb = my_random(process->cpu_max, rand_num);
+		int tmp_cb = my_random(process->cpu_max, rand_num, rand_ite);
 		if (process->cpu_all_time >= tmp_cb)
 			event.timestamp = cur_time + tmp_cb;
 		else
@@ -195,7 +210,7 @@ int put_event(deque<Event>* event_queue, Process* process, int old_state, long r
 	else if (event.old_state == STATE_BLOCK){
 		event.new_state	= STATE_READY;
 		event.transition = TRANS_TO_READY;
-		event.timestamp = cur_time + my_random(process->io_max, rand_num);;
+		event.timestamp = cur_time + my_random(process->io_max, rand_num, rand_ite);;
 	}
 	insert_queue(event_queue, event);
 }
@@ -270,7 +285,7 @@ int get_next_event_time(deque<Event>* event_queue){
 
 }
 
-int simulation(ifstream* file, long rand_num [randSize], deque<Event>* event_queue){
+int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* rand_ite, deque<Event>* event_queue){
 	Event* evt;
 	bool CALL_SCHEDULER = true;
 	vector<MidInfo> info_vec; 
@@ -304,7 +319,7 @@ int simulation(ifstream* file, long rand_num [randSize], deque<Event>* event_que
 					createInfo(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, 0, timeInPrev, proc->cpu_all_time, proc->static_prio);
 					//info_vec.push_back(info);
 					insert_info(&info_vec, info);
-					printInfo(info);
+					//printInfo(info);
 
 				      	//for print info
 					proc->state_prev_prev = STATE_BLOCK;
@@ -325,10 +340,10 @@ int simulation(ifstream* file, long rand_num [randSize], deque<Event>* event_que
 				createInfo(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, 0, 0, proc->cpu_all_time, proc->prio);
 				insert_info(&info_vec, info);
 				//info_vec.push_back(info);
-				printInfo(info);
+				//printInfo(info);
 
 				//create event for next step, it is either preempt or block
-				put_event(event_queue, proc, STATE_RUNNING, rand_num, cur_time);
+				put_event(event_queue, proc, STATE_RUNNING, rand_num, rand_ite, cur_time);
 				
 				//set process state for print info
 				proc->state_prev = STATE_RUNNING;
@@ -345,7 +360,7 @@ int simulation(ifstream* file, long rand_num [randSize], deque<Event>* event_que
 					CALL_SCHEDULER = true;
 					if (proc->cpu_all_time - timeInPrev > 0){
 						//create an event foo when process becomes READY again
-						put_event(event_queue, proc, STATE_BLOCK, rand_num, cur_time);
+						put_event(event_queue, proc, STATE_BLOCK, rand_num, rand_ite, cur_time);
 
 						//set process state for next session
 						proc->cpu_all_time = proc->cpu_all_time - timeInPrev;
@@ -359,7 +374,7 @@ int simulation(ifstream* file, long rand_num [randSize], deque<Event>* event_que
 						createInfo(&info, cur_time, proc->num, timeInPrev, proc->state_prev_prev, proc->state_prev, timeInPrev, 0, proc->cpu_all_time, proc->prio);
 						insert_info(&info_vec, info);
 					        //info_vec.push_back(info);
-					        printInfo(info);
+					        //printInfo(info);
 					}
 					cur_proc = NULL;
 
@@ -481,23 +496,29 @@ int main (int argc, char* argv[])
 	init_event_proc(&file, &event_queue);
 	
         //open rand file 
-        char rand_file_path [vecSize]= "./rfile";
+        char rand_file_path [vecSize]= "./rfile_2";
 	ifstream rand_file(rand_file_path);
 	if (!rand_file.is_open()){
 		printf("no open\n");
 		return -1;	
 	}
 
-	long rand_num [randSize];
+	char tmp [16] = {0};
+	rand_file.getline(tmp, sizeof(tmp));
+	int randSize =  atoi(tmp);
+	
+	vector<long> rand_num;
 	int cnt = 0;
 	while (rand_file.peek() != EOF){		
 		char tmp [16] = {0};
         	rand_file.getline(tmp, sizeof(tmp));	
-        	rand_num[cnt] = atol(tmp);
+        	rand_num.push_back(atol(tmp));
 		cnt++;
 	}
-	
-	simulation(&file, rand_num, &event_queue);
+
+	vector<long>::iterator rand_ite = rand_num.begin();	
+	rand_ite = rand_ite + 2;
+	simulation(&file, &rand_num, &rand_ite, &event_queue);
 
 	return 0; 	
 
