@@ -30,6 +30,7 @@ struct Process{
 	int prio;
 	int state_ts;
 	int state_dura;
+	int state;
 	int state_prev;
 	int state_prev_prev; 
 };
@@ -61,6 +62,7 @@ public:
 	virtual ~Scheduler(){};
 	virtual void add_to_queue (Process* proc);
 	virtual Process* get_from_queue ();
+	virtual int remove_from_queue ();
 	virtual int get_quantum ();
 	virtual void set_quantum (int num);
 	int get_queue_size () {
@@ -73,6 +75,10 @@ void Scheduler::add_to_queue (Process* proc){
 
 Process* Scheduler::get_from_queue (){
 	return NULL;
+}
+
+int Scheduler::remove_from_queue() {
+	return 0;
 }
 
 int Scheduler::get_quantum(){
@@ -91,6 +97,7 @@ class Scheduler_fcfs: public Scheduler {
 	~Scheduler_fcfs() {};
 	void add_to_queue (Process* proc);
         Process* get_from_queue ();
+	int remove_from_queue ();
 	int get_quantum ();
 	void set_quantum (int num);
 	int get_queue_size ();
@@ -110,6 +117,11 @@ Process* Scheduler_fcfs::get_from_queue() {
 		return tmp;
 	}
 	return NULL;
+}
+
+int Scheduler_fcfs::remove_from_queue() {
+	run_queue.pop_front();
+	return 0;
 }
 
 int Scheduler_fcfs::get_quantum() {
@@ -194,7 +206,7 @@ int insert_info(vector<MidInfo>* info_vec, MidInfo info){
 	return 0;
 }
 
-int put_event(deque<Event>* event_queue, Process* process, int old_state, vector<long>* rand_num, vector<long>::iterator* rand_ite, int cur_time){
+int put_event(deque<Event>* event_queue, Process* process, int old_state, vector<long>* rand_num, vector<long>::iterator* rand_ite, int cur_time, int* cur_end_time){
         Event event;
 	event.process = process;
 	event.old_state = old_state;
@@ -205,12 +217,15 @@ int put_event(deque<Event>* event_queue, Process* process, int old_state, vector
 		if (process->cpu_all_time >= tmp_cb)
 			event.timestamp = cur_time + tmp_cb;
 		else
-			event.timestamp = cur_time + process->cpu_all_time;		
+			event.timestamp = cur_time + process->cpu_all_time;
+		//if process is still running in cpu
+		(*cur_end_time) = event.timestamp;		
 	}
 	else if (event.old_state == STATE_BLOCK){
 		event.new_state	= STATE_READY;
 		event.transition = TRANS_TO_READY;
 		event.timestamp = cur_time + my_random(process->io_max, rand_num, rand_ite);;
+		(*cur_end_time) = cur_time;
 	}
 	insert_queue(event_queue, event);
 }
@@ -289,7 +304,8 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 	Event* evt;
 	bool CALL_SCHEDULER = true;
 	vector<MidInfo> info_vec; 
-	Process* cur_proc = NULL; 
+	Process* cur_proc = NULL;
+	int cur_end_time = 0; 
 	while (evt = get_event(event_queue)){
 		Process *proc = evt->process;
         	int cur_time = evt->timestamp;
@@ -309,6 +325,7 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 					//for info print
 					proc->state_prev_prev = STATE_CREATED;
 					proc->state_prev = STATE_READY;
+					proc->state = STATE_RUNNING;
 					proc->state_ts = cur_time;
 					proc->state_dura = timeInPrev; 
 					
@@ -324,6 +341,7 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				      	//for print info
 					proc->state_prev_prev = STATE_BLOCK;
 					proc->state_prev = STATE_READY;
+					proc->state = STATE_RUNNING;
 					proc->state_ts = cur_time;
 					proc->state_dura = timeInPrev;
 
@@ -342,14 +360,17 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				//info_vec.push_back(info);
 				//printInfo(info);
 
-				//create event for next step, it is either preempt or block
-				put_event(event_queue, proc, STATE_RUNNING, rand_num, rand_ite, cur_time);
+				//create event for next step, it is either preempt or RUNNING->BLOCK
+				put_event(event_queue, proc, STATE_RUNNING, rand_num, rand_ite, cur_time, &cur_end_time);
 				
 				//set process state for print info
+				proc->state = STATE_BLOCK;
 				proc->state_prev = STATE_RUNNING;
 				proc->state_prev_prev = STATE_READY;
 				proc->state_ts = cur_time; 
 				proc->state_dura = timeInPrev;
+
+				//cur_proc = proc;
 				break;
 			case TRANS_TO_BLOCK:
 					//create info for READY->RUNNING 	
@@ -359,11 +380,12 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 					//printInfo(info);
 					CALL_SCHEDULER = true;
 					if (proc->cpu_all_time - timeInPrev > 0){
-						//create an event foo when process becomes READY again
-						put_event(event_queue, proc, STATE_BLOCK, rand_num, rand_ite, cur_time);
+						//create an event for BLOCK->READY
+						put_event(event_queue, proc, STATE_BLOCK, rand_num, rand_ite, cur_time, &cur_end_time);
 
 						//set process state for next session
 						proc->cpu_all_time = proc->cpu_all_time - timeInPrev;
+						proc->state = STATE_READY;
 						proc->state_prev = STATE_BLOCK;
 						proc->state_prev_prev = STATE_RUNNING;
 						proc->state_ts = cur_time;
@@ -374,10 +396,11 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 						createInfo(&info, cur_time, proc->num, timeInPrev, proc->state_prev_prev, proc->state_prev, timeInPrev, 0, proc->cpu_all_time, proc->prio);
 						insert_info(&info_vec, info);
 					        //info_vec.push_back(info);
-					        //printInfo(info);
+					        printInfo(info);
 					}
 					cur_proc = NULL;
-
+					//from run_queue remove current process
+				//	sched->remove_from_queue();
 				break;
 		}
 		if(CALL_SCHEDULER){
@@ -390,10 +413,21 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				if (cur_proc == NULL)
 					continue;
 				//create event to make this process runnable for same time?
-				//the state will be STATE_RUNNING
-				if (cur_proc->state_prev == STATE_READY){
+				//create event for READY->RUNNING
+				if (cur_proc->state_prev == STATE_READY and cur_proc->state_prev_prev == STATE_CREATED){
 					Event event;
 					event.timestamp = cur_proc->state_ts;
+					event.process = cur_proc;
+					event.old_state = STATE_READY;
+					event.new_state = STATE_RUNNING;
+					event.transition = TRANS_TO_RUNNING;
+					insert_queue(event_queue, event);
+				}else if (cur_proc->state_prev == STATE_READY and cur_proc->state_prev_prev == STATE_BLOCK){
+					Event event;
+					if (cur_proc->state_ts > cur_end_time)
+						event.timestamp = cur_proc->state_ts;
+					else
+						event.timestamp = cur_end_time;
 					event.process = cur_proc;
 					event.old_state = STATE_READY;
 					event.new_state = STATE_RUNNING;
@@ -434,10 +468,11 @@ int init_event_proc(ifstream* file, deque<Event>* event_queue){
 			cnt++;
 		} 	
 		proc->state_dura = 0;
+		proc->state = STATE_CREATED;
 		proc->state_prev = STATE_CREATED;
 		proc->state_prev_prev = STATE_CREATED;
 		proc->static_prio = 2;
-		proc->prio = 1;
+		proc->prio = lineNum+1;
 		proc->num = lineNum;
 		lineNum++;
 
@@ -520,6 +555,14 @@ int main (int argc, char* argv[])
 	rand_ite = rand_ite + 2;
 	simulation(&file, &rand_num, &rand_ite, &event_queue);
 
+	//print summation
+	switch (schedtype) {
+		case 1:
+			printf("FCFS\n");
+			break;
+		default:
+			exit(1);
+	} 
 	return 0; 	
 
 
