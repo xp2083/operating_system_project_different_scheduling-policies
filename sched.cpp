@@ -11,13 +11,13 @@
 #include <deque>
 using namespace std;
 
-
 typedef enum {STATE_CREATED=1, STATE_READY=2, STATE_RUNNING=3, STATE_BLOCK=4} process_state_t;
 typedef enum {TRANS_TO_READY=1, TRANS_TO_RUNNING=2, TRANS_TO_BLOCK=3, TRANS_TO_PREEMPT=4} procee_strans_state;
 
 
 #define vecSize 64
 #define maxVecSize 512
+#define DEBUG 1
 
 int lineNum = 0;
 
@@ -32,7 +32,16 @@ struct Process{
 	int state_dura;
 	int state;
 	int state_prev;
-	int state_prev_prev; 
+	int state_prev_prev;
+	int start_time;
+	int total_cpu;
+	int finish_time;
+	int run_time;
+	int io_time;
+	int cpu_wait_time;
+	int cpu_utiliz_time;
+	int last_ib_start;
+	int last_ib_end;
 };
 
 struct Event{
@@ -156,6 +165,24 @@ Event* get_event(deque<Event>* event_queue){
 		return NULL;
 }
 
+int insert_process(vector<Process>* stat_info, Process* proc){
+	vector<Process>::iterator ite = stat_info->begin();
+	if (stat_info->size() == 0)
+		stat_info->push_back(*proc);
+	else{
+		while(ite != stat_info->end()){
+			if (proc->num > ite->num)
+				ite++;
+			else
+				break;
+		}
+		if (ite != stat_info->end())
+			stat_info->insert(ite, *proc);
+		else
+			stat_info->push_back(*proc);
+	}
+}
+
 int insert_queue(deque<Event>* event_queue, Event eve){
 	deque<Event>::iterator ite = event_queue->begin();
 	if (event_queue->size() == 0){
@@ -164,8 +191,6 @@ int insert_queue(deque<Event>* event_queue, Event eve){
 	else{
 		while (ite != event_queue->end()){
 			if (eve.timestamp > ite->timestamp) 
-				ite++;
-			else if (eve.timestamp == ite->timestamp and eve.process->num > ite->process->num)
 				ite++;
 			else 
 				break;
@@ -177,7 +202,7 @@ int insert_queue(deque<Event>* event_queue, Event eve){
 	}
 	return 0;
 }
-
+/*
 int insert_info(vector<MidInfo>* info_vec, MidInfo info){
 	vector<MidInfo>::iterator ite = info_vec->begin();
 	if (info_vec->size() == 0){
@@ -189,7 +214,7 @@ int insert_info(vector<MidInfo>* info_vec, MidInfo info){
 			while (ite != info_vec->end()){
 				if (info.s_time > ite->s_time)
 					ite++;
-				else if (info.process > ite->process)
+				else if (info.s_time == ite->s_time and info.process > ite->process)
 					ite++;
 				else
 					break;
@@ -204,7 +229,7 @@ int insert_info(vector<MidInfo>* info_vec, MidInfo info){
 		}
 	}
 	return 0;
-}
+}*/
 
 int put_event(deque<Event>* event_queue, Process* process, int old_state, vector<long>* rand_num, vector<long>::iterator* rand_ite, int cur_time, int* cur_end_time){
         Event event;
@@ -230,7 +255,7 @@ int put_event(deque<Event>* event_queue, Process* process, int old_state, vector
 	insert_queue(event_queue, event);
 }
 
-int createInfo (MidInfo* info, int start_time, int process_num, int last_time, int prev_state, int next_state,int cb, int ib, int rem, int prio) {
+int create_info (MidInfo* info, int start_time, int process_num, int last_time, int prev_state, int next_state,int cb, int ib, int rem, int prio) {
 	info->s_time = start_time;
 	info->process = process_num;
  	info->last_time = last_time;
@@ -245,7 +270,7 @@ int createInfo (MidInfo* info, int start_time, int process_num, int last_time, i
 }
 
 
-void printInfo(MidInfo info){
+void print_info(MidInfo info){
 	string prev_state = "";
 	string next_state = "";
 	switch(info.prev_state){
@@ -277,7 +302,6 @@ void printInfo(MidInfo info){
 			break;
 	}
 	
-
 	printf("%d %d %d:", info.s_time, info.process, info.last_time);
 	if (info.rem == 0) 
 		printf(" Done\n");
@@ -292,6 +316,51 @@ void printInfo(MidInfo info){
 	}	
 }
 
+void get_io_utiliz(vector<MidInfo>* info_vec, int* io_utilize){
+					/*int tmp_start = 0;
+					//if the next ib step is in all the range of the last ib step
+					//do nothing
+					if (proc->state_ts + timeInPrev > proc->last_ib_end){
+						if (proc->state_ts < proc->last_ib_end)
+				    //if the next ib step's start is within last ib start and last ib end 
+				    //set a new start
+							tmp_start = proc->last_ib_end;
+						else 
+							tmp_start = proc->state_ts;
+						proc->io_utiliz_time += proc->state_ts + timeInPrev - tmp_start;
+						proc->last_ib_start = proc->state_ts;
+						proc->last_ib_end = proc->state_ts + timeInPrev;
+					}*/
+	int last_ib_start = 0;
+	int last_ib_end = 0; 
+	vector<MidInfo>::iterator ite = info_vec->begin();
+	while (ite != info_vec->end()){
+		MidInfo info = *ite;
+		if (info.prev_state == STATE_RUNNING){
+			//if the next ib step is in all the range of the last ib step
+			//do nothing
+			if (info.s_time + info.ib > last_ib_end){
+			  //if the next ib step's start is within last ib start and last ib end
+			  //set a new start
+			  int tmp_start = 0;
+			  if (info.s_time < last_ib_end)
+			  	tmp_start = last_ib_end;
+			  else
+				tmp_start = info.s_time;		
+			
+			*io_utilize += info.s_time + info.ib - tmp_start;
+			last_ib_start = info.s_time;
+			last_ib_end = info.s_time + info.ib;
+			}
+		}
+		ite++;
+	}
+}
+
+void print_process(Process proc){
+	printf("%04d: %4d %4d %4d %4d %1d | %5d %5d %5d %5d\n", proc.num, proc.start_time, proc.total_cpu, proc.cpu_max, proc.io_max, proc.static_prio, proc.finish_time, proc.run_time, proc.io_time, proc.cpu_wait_time);
+} 
+
 int get_next_event_time(deque<Event>* event_queue){
 	if (&(event_queue->front()) != NULL)
 		return (event_queue->front()).timestamp;
@@ -300,10 +369,46 @@ int get_next_event_time(deque<Event>* event_queue){
 
 }
 
-int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* rand_ite, deque<Event>* event_queue){
+int print_sum(int sched_type, vector<Process>* stat_info, vector<MidInfo>* info_vec){
+	switch (sched_type) {
+		case 1:
+			printf("FCFS\n");
+			break;
+		default:
+			exit(1);
+	}
+	int total_time = 0;
+	double cpu_utiliz = 0.0;
+	int io_utiliz_time = 0;
+	double io_utiliz = 0.0;
+	double avg_run_time = 0.0;
+	double avg_wait_time = 0.0;
+	double through_put = 0.0;
+	int cnt = 0;
+	vector<Process>::iterator ite = stat_info->begin();
+	while (ite != stat_info->end()){
+		cnt += 1;
+		Process proc = *ite;
+		print_process(proc); 
+		if (proc.finish_time > total_time)
+			total_time = proc.finish_time;
+		avg_run_time += proc.run_time;
+		avg_wait_time += proc.cpu_wait_time;
+		cpu_utiliz += proc.cpu_utiliz_time;
+		ite++;
+		}
+	avg_run_time /= cnt;
+	avg_wait_time /= cnt;
+	through_put = 100.00/total_time*2;
+	cpu_utiliz = cpu_utiliz/total_time*100;
+	get_io_utiliz(info_vec, &io_utiliz_time);
+	io_utiliz = io_utiliz_time/total_time*100;
+	printf("SUM: %d %.2lf %.2lf %.2lf %.2lf %.3lf\n", total_time, cpu_utiliz, io_utiliz, avg_run_time, avg_wait_time, through_put);		
+}
+
+int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* rand_ite, deque<Event>* event_queue, vector<Process>* stat_info, vector<MidInfo>* info_vec){
 	Event* evt;
 	bool CALL_SCHEDULER = true;
-	vector<MidInfo> info_vec; 
 	Process* cur_proc = NULL;
 	int cur_end_time = 0; 
 	while (evt = get_event(event_queue)){
@@ -333,11 +438,13 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				else {
 					//come from BLOCKED
 					//create info for RUNNING->BLOCK	
-					createInfo(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, 0, timeInPrev, proc->cpu_all_time, proc->static_prio);
-					//info_vec.push_back(info);
-					insert_info(&info_vec, info);
-					//printInfo(info);
-
+					create_info(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, 0, timeInPrev, proc->cpu_all_time, proc->static_prio);
+					insert_info(info_vec, info);
+					#ifdef DEBUG
+					print_info(info);
+					#endif
+					//set statitic info
+					proc->io_time += timeInPrev;
 				      	//for print info
 					proc->state_prev_prev = STATE_BLOCK;
 					proc->state_prev = STATE_READY;
@@ -355,29 +462,33 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 			case TRANS_TO_RUNNING:
 				//comes from READY
 				//create info for CREATED/BLOCK->READY
-				createInfo(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, 0, 0, proc->cpu_all_time, proc->prio);
-				insert_info(&info_vec, info);
-				//info_vec.push_back(info);
-				//printInfo(info);
-
+				create_info(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, 0, 0, proc->cpu_all_time, proc->prio);
+				insert_info(info_vec, info);
+				#ifdef DEBUG
+				print_info(info);
+				#endif
 				//create event for next step, it is either preempt or RUNNING->BLOCK
 				put_event(event_queue, proc, STATE_RUNNING, rand_num, rand_ite, cur_time, &cur_end_time);
 				
-				//set process state for print info
+				//for print info
 				proc->state = STATE_BLOCK;
 				proc->state_prev = STATE_RUNNING;
 				proc->state_prev_prev = STATE_READY;
 				proc->state_ts = cur_time; 
 				proc->state_dura = timeInPrev;
 
-				//cur_proc = proc;
 				break;
 			case TRANS_TO_BLOCK:
 					//create info for READY->RUNNING 	
-					createInfo(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, timeInPrev, 0, proc->cpu_all_time, proc->prio);
-					insert_info(&info_vec, info);
-					//info_vec.push_back(info);
-					//printInfo(info);
+					create_info(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, timeInPrev, 0, proc->cpu_all_time, proc->prio);
+					insert_info(info_vec, info);
+					#ifdef DEBUG
+					print_info(info);
+					#endif
+					//set statistic info
+					proc->cpu_wait_time += proc->state_dura;
+					proc->cpu_utiliz_time += timeInPrev;
+
 					CALL_SCHEDULER = true;
 					if (proc->cpu_all_time - timeInPrev > 0){
 						//create an event for BLOCK->READY
@@ -392,11 +503,17 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 						proc->state_dura = timeInPrev;
 					}
 					else{
+						//process run done
 						proc->cpu_all_time = proc->cpu_all_time - timeInPrev;
-						createInfo(&info, cur_time, proc->num, timeInPrev, proc->state_prev_prev, proc->state_prev, timeInPrev, 0, proc->cpu_all_time, proc->prio);
-						insert_info(&info_vec, info);
-					        //info_vec.push_back(info);
-					        printInfo(info);
+						create_info(&info, cur_time, proc->num, timeInPrev, proc->state_prev_prev, proc->state_prev, timeInPrev, 0, proc->cpu_all_time, proc->prio);
+						insert_info(info_vec, info);
+					        #ifdef DEBUG
+						print_info(info);
+						#endif
+					        //set statistical info
+					        proc->finish_time = cur_time;
+						proc->run_time = proc->finish_time - proc->start_time;
+						insert_process(stat_info, proc);	
 					}
 					cur_proc = NULL;
 					//from run_queue remove current process
@@ -437,11 +554,6 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 			}
 		}
 	}
-	vector<MidInfo>::iterator ite = info_vec.begin();
-	while (ite != info_vec.end()){
-		printInfo(*ite);
-		ite++;
-	} 	
 }
 
 int init_event_proc(ifstream* file, deque<Event>* event_queue){
@@ -471,9 +583,18 @@ int init_event_proc(ifstream* file, deque<Event>* event_queue){
 		proc->state = STATE_CREATED;
 		proc->state_prev = STATE_CREATED;
 		proc->state_prev_prev = STATE_CREATED;
-		proc->static_prio = 2;
+		proc->static_prio = lineNum+2;
 		proc->prio = lineNum+1;
 		proc->num = lineNum;
+		proc->start_time = proc->state_ts;
+		proc->total_cpu = proc->cpu_all_time;
+		proc->finish_time = 0;
+		proc->run_time = 0;
+		proc->io_time = 0;
+		proc->cpu_wait_time = 0;
+		proc->cpu_utiliz_time = 0;
+		proc->last_ib_start = 0;
+		proc->last_ib_end = 0;
 		lineNum++;
 
 		//create new event and add to event queue 
@@ -493,7 +614,7 @@ int main (int argc, char* argv[])
 {
 	//create scheduler
 	int c;
-	int schedtype = 1;
+	int sched_type = 1;
         /*
 	while ((c = getopt(argc,argv,"s:")) != -1 )
         {
@@ -504,7 +625,7 @@ int main (int argc, char* argv[])
                 }
         }*/
 
-        switch (schedtype) {
+        switch (sched_type) {
         case 1:
 		{
 	    Scheduler_fcfs* fcfs_scheduler = new Scheduler_fcfs();  
@@ -531,7 +652,7 @@ int main (int argc, char* argv[])
 	init_event_proc(&file, &event_queue);
 	
         //open rand file 
-        char rand_file_path [vecSize]= "./rfile_2";
+        char rand_file_path [vecSize]= "./rfile";
 	ifstream rand_file(rand_file_path);
 	if (!rand_file.is_open()){
 		printf("no open\n");
@@ -553,18 +674,21 @@ int main (int argc, char* argv[])
 
 	vector<long>::iterator rand_ite = rand_num.begin();	
 	rand_ite = rand_ite + 2;
-	simulation(&file, &rand_num, &rand_ite, &event_queue);
+	vector<Process> stat_proc_info;
+	vector<MidInfo> info_vec;
+	simulation(&file, &rand_num, &rand_ite, &event_queue, &stat_proc_info, &info_vec);
+
+	//print info
+	/*
+	vector<MidInfo>::iterator ite = info_vec.begin();
+	while (ite != info_vec.end()){
+		print_info(*ite);
+		ite++;
+	} */	
 
 	//print summation
-	switch (schedtype) {
-		case 1:
-			printf("FCFS\n");
-			break;
-		default:
-			exit(1);
-	} 
+	print_sum(sched_type, &stat_proc_info, &info_vec);
 	return 0; 	
-
 
 	
 }
