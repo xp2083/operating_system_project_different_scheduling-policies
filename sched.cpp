@@ -190,7 +190,7 @@ int insert_queue(deque<Event>* event_queue, Event eve){
 	}
 	else{
 		while (ite != event_queue->end()){
-			if (eve.timestamp > ite->timestamp) 
+			if (eve.timestamp >= ite->timestamp) 
 				ite++;
 			else 
 				break;
@@ -253,6 +253,7 @@ int put_event(deque<Event>* event_queue, Process* process, int old_state, vector
 		(*cur_end_time) = cur_time;
 	}
 	insert_queue(event_queue, event);
+	return event.timestamp - cur_time;
 }
 
 int create_info (MidInfo* info, int start_time, int process_num, int last_time, int prev_state, int next_state,int cb, int ib, int rem, int prio) {
@@ -426,94 +427,103 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				//add to run queue, no event created 
 				CALL_SCHEDULER = true;
 				sched->add_to_queue(proc);
-				if (proc->state_prev == STATE_CREATED){
-					//for info print
+				proc->state_ts = cur_time;
+				if (proc->state == STATE_CREATED){
+					//come from CREATED
+				         //print info for CREATED->READY
+				        proc->state = STATE_READY;
+				        create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, 0, 0, proc->cpu_all_time, proc->prio);	
+					info_vec->push_back(info);
+					#ifdef DEBUG
+					print_info(info);
+					#endif
 					proc->state_prev_prev = STATE_CREATED;
 					proc->state_prev = STATE_READY;
 					proc->state = STATE_RUNNING;
-					proc->state_ts = cur_time;
-					proc->state_dura = timeInPrev; 
-					
 				} 
 				else {
 					//come from BLOCKED
-					//create info for RUNNING->BLOCK	
-					create_info(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, 0, timeInPrev, proc->cpu_all_time, proc->static_prio);
-					insert_info(info_vec, info);
+					//print info for BLOCK->READY 
+					create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, 0, 0, proc->cpu_all_time, proc->static_prio);
+					info_vec->push_back(info);
 					#ifdef DEBUG
 					print_info(info);
 					#endif
 					//set statitic info
-					proc->io_time += timeInPrev;
-				      	//for print info
+					//proc->io_time += timeInPrev;
 					proc->state_prev_prev = STATE_BLOCK;
 					proc->state_prev = STATE_READY;
 					proc->state = STATE_RUNNING;
-					proc->state_ts = cur_time;
-					proc->state_dura = timeInPrev;
-
 				}
 				break;
+
 			case TRANS_TO_PREEMPT:
 				//must come from RUNNING 
 				//add to run queue, no event is generated
 				CALL_SCHEDULER = true;
 				break;
+
 			case TRANS_TO_RUNNING:
+				{
 				//comes from READY
 				//create info for CREATED/BLOCK->READY
-				create_info(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, 0, 0, proc->cpu_all_time, proc->prio);
-				insert_info(info_vec, info);
+				//create_info(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, 0, 0, proc->cpu_all_time, proc->prio);
+				//insert_info(info_vec, info);
+				//create event for next step, it is either preempt or RUNNING->BLOCK
+				proc->state_ts = cur_time;
+				int cb = put_event(event_queue, proc, STATE_RUNNING, rand_num, rand_ite, cur_time, &cur_end_time);
+				
+				//print READY->RUNNING info
+				create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, cb, 0, proc->cpu_all_time, proc->prio);
+				info_vec->push_back(info);
 				#ifdef DEBUG
 				print_info(info);
 				#endif
-				//create event for next step, it is either preempt or RUNNING->BLOCK
-				put_event(event_queue, proc, STATE_RUNNING, rand_num, rand_ite, cur_time, &cur_end_time);
 				
 				//for print info
 				proc->state = STATE_BLOCK;
 				proc->state_prev = STATE_RUNNING;
 				proc->state_prev_prev = STATE_READY;
-				proc->state_ts = cur_time; 
-				proc->state_dura = timeInPrev;
-
 				break;
+			}
+
 			case TRANS_TO_BLOCK:
 					//create info for READY->RUNNING 	
-					create_info(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, timeInPrev, 0, proc->cpu_all_time, proc->prio);
-					insert_info(info_vec, info);
-					#ifdef DEBUG
-					print_info(info);
-					#endif
+					//create_info(&info, proc->state_ts, proc->num, proc->state_dura, proc->state_prev_prev, proc->state_prev, timeInPrev, 0, proc->cpu_all_time, proc->prio);
+					//insert_info(info_vec, info);
+					//#ifdef DEBUG
+					//print_info(info);
+					//#endif
 					//set statistic info
-					proc->cpu_wait_time += proc->state_dura;
-					proc->cpu_utiliz_time += timeInPrev;
-
+					//proc->cpu_wait_time += proc->state_dura;
+					//proc->cpu_utiliz_time += timeInPrev;
+					proc->state_ts = cur_time;
+					proc->cpu_all_time = proc->cpu_all_time - timeInPrev;
 					CALL_SCHEDULER = true;
-					if (proc->cpu_all_time - timeInPrev > 0){
+					if (proc->cpu_all_time > 0){
 						//create an event for BLOCK->READY
-						put_event(event_queue, proc, STATE_BLOCK, rand_num, rand_ite, cur_time, &cur_end_time);
-
+						int ib = put_event(event_queue, proc, STATE_BLOCK, rand_num, rand_ite, cur_time, &cur_end_time);
+						//print RUNNING->BLOCK info
+						create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, 0, ib, proc->cpu_all_time, proc->static_prio);
+						info_vec->push_back(info);
+						#ifdef DEBUG
+						print_info(info);
+						#endif
 						//set process state for next session
-						proc->cpu_all_time = proc->cpu_all_time - timeInPrev;
 						proc->state = STATE_READY;
 						proc->state_prev = STATE_BLOCK;
 						proc->state_prev_prev = STATE_RUNNING;
-						proc->state_ts = cur_time;
-						proc->state_dura = timeInPrev;
 					}
 					else{
-						//process run done
-						proc->cpu_all_time = proc->cpu_all_time - timeInPrev;
-						create_info(&info, cur_time, proc->num, timeInPrev, proc->state_prev_prev, proc->state_prev, timeInPrev, 0, proc->cpu_all_time, proc->prio);
-						insert_info(info_vec, info);
+						create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, timeInPrev, 0, proc->cpu_all_time, proc->prio);
+						info_vec->push_back(info);
 					        #ifdef DEBUG
 						print_info(info);
 						#endif
 					        //set statistical info
-					        proc->finish_time = cur_time;
-						proc->run_time = proc->finish_time - proc->start_time;
-						insert_process(stat_info, proc);	
+					        //proc->finish_time = cur_time;
+						//proc->run_time = proc->finish_time - proc->start_time;
+						//insert_process(stat_info, proc);	
 					}
 					cur_proc = NULL;
 					//from run_queue remove current process
@@ -678,16 +688,8 @@ int main (int argc, char* argv[])
 	vector<MidInfo> info_vec;
 	simulation(&file, &rand_num, &rand_ite, &event_queue, &stat_proc_info, &info_vec);
 
-	//print info
-	/*
-	vector<MidInfo>::iterator ite = info_vec.begin();
-	while (ite != info_vec.end()){
-		print_info(*ite);
-		ite++;
-	} */	
-
 	//print summation
-	print_sum(sched_type, &stat_proc_info, &info_vec);
+	//print_sum(sched_type, &stat_proc_info, &info_vec);
 	return 0; 	
 
 	
