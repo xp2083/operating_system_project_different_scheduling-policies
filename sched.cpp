@@ -142,16 +142,16 @@ void Scheduler_fcfs::set_quantum(int num) {
 }
 
 
-int my_random(int burst, vector<long>* rand_num, vector<long>::iterator* rand_ite){
+int my_random(int up_limit, int proc_cnt, vector<long>* rand_num, vector<long>::iterator* rand_ite){
 	if (*rand_ite == rand_num->end()){
 		*rand_ite = rand_num->begin();
 	} 	 
-	
-	 int rand_res = ((**rand_ite) % burst) + 1;
+	 if (up_limit == 0)
+		up_limit = proc_cnt+1;	
+	 int rand_res = ((**rand_ite) % up_limit) + 1;
 	 //printf("rand_num %lu\n", rand_num[rand_cnt]);
 	 //printf("rand_res %d\n", rand_res);
-	 vector<long>::iterator tmp = (*rand_ite)++;
-	 rand_ite = &tmp;
+	 (*rand_ite)++;
 	 return rand_res;
 	  
 }
@@ -210,7 +210,7 @@ int put_event(deque<Event>* event_queue, Process* process, int old_state, vector
 	if (event.old_state == STATE_RUNNING){
 		event.new_state = STATE_BLOCK;
 		event.transition = TRANS_TO_BLOCK;
-		int tmp_cb = my_random(process->cpu_max, rand_num, rand_ite);
+		int tmp_cb = my_random(process->cpu_max, 0, rand_num, rand_ite);
 		if (process->cpu_all_time >= tmp_cb)
 			event.timestamp = cur_time + tmp_cb;
 		else
@@ -221,7 +221,7 @@ int put_event(deque<Event>* event_queue, Process* process, int old_state, vector
 	else if (event.old_state == STATE_BLOCK){
 		event.new_state	= STATE_READY;
 		event.transition = TRANS_TO_READY;
-		event.timestamp = cur_time + my_random(process->io_max, rand_num, rand_ite);;
+		event.timestamp = cur_time + my_random(process->io_max, 0, rand_num, rand_ite);;
 		(*cur_end_time) = cur_time;
 	}
 	insert_queue(event_queue, event);
@@ -285,7 +285,7 @@ void print_info(MidInfo info){
 	else if (info.prev_state == STATE_READY)
 		printf(" cb=%d rem=%d prio=%d\n", info.cb, info.rem, info.prio);
 	else if (info.prev_state == STATE_RUNNING)
-		printf(" ib=%d rem=%d\n", info.ib, info.rem);
+		printf("  ib=%d rem=%d\n", info.ib, info.rem);
 	}	
 }
 
@@ -360,7 +360,7 @@ int print_sum(int sched_type, vector<Process>* stat_info, vector<MidInfo>* info_
 		}
 	avg_run_time /= cnt;
 	avg_wait_time /= cnt;
-	through_put = 100.00/total_time*2;
+	through_put = 100.00/total_time*cnt;
 	cpu_utiliz = cpu_utiliz_time/total_time*100;
 	get_io_utiliz(info_vec, &io_utiliz_time);
 	io_utiliz = io_utiliz_time/total_time*100;
@@ -497,7 +497,10 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				//create event for READY->RUNNING
 				if (cur_proc->state_prev == STATE_READY and cur_proc->state_prev_prev == STATE_CREATED){
 					Event event;
-					event.timestamp = cur_proc->state_ts;
+					if (cur_proc->state_ts > cur_end_time)
+						event.timestamp = cur_proc->state_ts;
+					else
+						event.timestamp = cur_end_time;
 					event.process = cur_proc;
 					event.old_state = STATE_READY;
 					event.new_state = STATE_RUNNING;
@@ -520,8 +523,10 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 	}
 }
 
-int init_event_proc(ifstream* file, deque<Event>* event_queue){
+int init_event_proc(ifstream* file, deque<Event>* event_queue, int max_prio, vector<long>* rand_num, vector<long>::iterator* rand_ite){
+	int proc_cnt = 0;
 	while (file->peek() != EOF){
+		proc_cnt++;
 		//create new process and add to scheduler process deque
 		char tmp [maxVecSize] = {0};
 		file->getline(tmp, maxVecSize); 			
@@ -547,8 +552,8 @@ int init_event_proc(ifstream* file, deque<Event>* event_queue){
 		proc->state = STATE_CREATED;
 		proc->state_prev = STATE_CREATED;
 		proc->state_prev_prev = STATE_CREATED;
-		proc->static_prio = (lineNum+1)*2;
-		proc->prio = lineNum*2+1;
+		proc->static_prio = 0;
+		proc->prio = 0;
 		proc->num = lineNum;
 		proc->start_time = proc->state_ts;
 		proc->total_cpu = proc->cpu_all_time;
@@ -571,6 +576,14 @@ int init_event_proc(ifstream* file, deque<Event>* event_queue){
 		event_queue->push_back(event);					 
 
 	}
+	//create each process's static prio and prio
+	deque<Event>::iterator ite = event_queue->begin();
+	while(ite != event_queue->end()){
+		((*ite).process)->static_prio = my_random(max_prio, proc_cnt, rand_num, rand_ite);
+		((*ite).process)->prio = ((*ite).process)->static_prio - 1;
+		ite++;
+	}
+	
 	return 0;	
 }
 
@@ -588,6 +601,8 @@ int main (int argc, char* argv[])
                         break;
                 }
         }*/
+
+	int max_prio = 0;
 
         switch (sched_type) {
         case 1:
@@ -611,12 +626,9 @@ int main (int argc, char* argv[])
 		printf("no open\n");
 		return -1;	
 	}
-        //initialize all process and their created->ready event 
- 	deque<Event> event_queue;       
-	init_event_proc(&file, &event_queue);
-	
-        //open rand file 
-        char rand_file_path [vecSize]= "./rfile";
+        
+	//open rand file 
+        char rand_file_path [vecSize]= "./rfile_2";
 	ifstream rand_file(rand_file_path);
 	if (!rand_file.is_open()){
 		printf("no open\n");
@@ -635,9 +647,12 @@ int main (int argc, char* argv[])
         	rand_num.push_back(atol(tmp));
 		cnt++;
 	}
+	
+        vector<long>::iterator rand_ite = rand_num.begin();
+        //initialize all process and their created->ready event 
+ 	deque<Event> event_queue;       
+	init_event_proc(&file, &event_queue, max_prio, &rand_num, &rand_ite);
 
-	vector<long>::iterator rand_ite = rand_num.begin();	
-	rand_ite = rand_ite + 2;
 	vector<Process> stat_proc_info;
 	vector<MidInfo> info_vec;
 	simulation(&file, &rand_num, &rand_ite, &event_queue, &stat_proc_info, &info_vec);
