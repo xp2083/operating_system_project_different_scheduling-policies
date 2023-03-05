@@ -18,6 +18,7 @@ typedef enum {TRANS_TO_READY=1, TRANS_TO_RUNNING=2, TRANS_TO_BLOCK=3, TRANS_TO_P
 #define vecSize 64
 #define maxVecSize 512
 #define DEBUG 1
+#define defLimit 4
 
 int lineNum = 0;
 
@@ -142,12 +143,12 @@ void Scheduler_fcfs::set_quantum(int num) {
 }
 
 
-int my_random(int up_limit, int proc_cnt, vector<long>* rand_num, vector<long>::iterator* rand_ite){
+int my_random(int up_limit, vector<long>* rand_num, vector<long>::iterator* rand_ite){
 	if (*rand_ite == rand_num->end()){
 		*rand_ite = rand_num->begin();
 	} 	 
 	 if (up_limit == 0)
-		up_limit = proc_cnt+1;	
+		up_limit = defLimit;	
 	 int rand_res = ((**rand_ite) % up_limit) + 1;
 	 //printf("rand_num %lu\n", rand_num[rand_cnt]);
 	 //printf("rand_res %d\n", rand_res);
@@ -210,7 +211,7 @@ int put_event(deque<Event>* event_queue, Process* process, int old_state, vector
 	if (event.old_state == STATE_RUNNING){
 		event.new_state = STATE_BLOCK;
 		event.transition = TRANS_TO_BLOCK;
-		int tmp_cb = my_random(process->cpu_max, 0, rand_num, rand_ite);
+		int tmp_cb = my_random(process->cpu_max, rand_num, rand_ite);
 		if (process->cpu_all_time >= tmp_cb)
 			event.timestamp = cur_time + tmp_cb;
 		else
@@ -221,7 +222,7 @@ int put_event(deque<Event>* event_queue, Process* process, int old_state, vector
 	else if (event.old_state == STATE_BLOCK){
 		event.new_state	= STATE_READY;
 		event.transition = TRANS_TO_READY;
-		event.timestamp = cur_time + my_random(process->io_max, 0, rand_num, rand_ite);;
+		event.timestamp = cur_time + my_random(process->io_max, rand_num, rand_ite);;
 		(*cur_end_time) = cur_time;
 	}
 	insert_queue(event_queue, event);
@@ -579,7 +580,7 @@ int init_event_proc(ifstream* file, deque<Event>* event_queue, int max_prio, vec
 	//create each process's static prio and prio
 	deque<Event>::iterator ite = event_queue->begin();
 	while(ite != event_queue->end()){
-		((*ite).process)->static_prio = my_random(max_prio, proc_cnt, rand_num, rand_ite);
+		((*ite).process)->static_prio = my_random(max_prio, rand_num, rand_ite);
 		((*ite).process)->prio = ((*ite).process)->static_prio - 1;
 		ite++;
 	}
