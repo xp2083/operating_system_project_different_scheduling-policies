@@ -521,9 +521,9 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 						print_info(info);
 						#endif
 					        //set statistical info
-					        //proc->finish_time = cur_time;
-						//proc->run_time = proc->finish_time - proc->start_time;
-						//insert_process(stat_info, proc);	
+					        proc->finish_time = cur_time;
+						proc->run_time = proc->finish_time - proc->start_time;
+						insert_process(stat_info, proc);	
 					}
 					cur_proc = NULL;
 					//from run_queue remove current process
@@ -689,7 +689,7 @@ int main (int argc, char* argv[])
 	simulation(&file, &rand_num, &rand_ite, &event_queue, &stat_proc_info, &info_vec);
 
 	//print summation
-	//print_sum(sched_type, &stat_proc_info, &info_vec);
+	print_sum(sched_type, &stat_proc_info, &info_vec);
 	return 0; 	
 
 	
