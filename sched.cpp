@@ -34,6 +34,7 @@ struct Process{
 	int state;
 	int state_prev;
 	int state_prev_prev;
+	int left_cb;
 	int start_time;
 	int total_cpu;
 	int finish_time;
@@ -216,6 +217,39 @@ void Scheduler_SRTF::set_quantum(int num) {
         quantum = num;
 }
 
+class Scheduler_RR: public Scheduler {
+	public:
+	~Scheduler_RR() {};
+	void add_to_queue (Process* proc);
+        Process* get_from_queue ();
+	int get_quantum ();
+	void set_quantum (int num);
+	int get_queue_size ();
+};
+
+void Scheduler_RR::add_to_queue(Process* proc) {
+	run_queue.push_back(proc);
+	//printf("in add_to_queue size of sched queue %d\n", sched->get_queue_size());
+	//printf("%s Q=%d\n", __FUNCTION__, obj->run_queue);
+}
+
+Process* Scheduler_RR::get_from_queue() {
+	//printf("%s\n", __FUNCTION__);
+	if (run_queue.size() != 0){
+		Process* tmp = run_queue.front();
+		run_queue.pop_front();
+		return tmp;
+	}
+	return NULL;
+}
+
+int Scheduler_RR::get_quantum() {
+        return quantum;
+}
+
+void Scheduler_RR::set_quantum(int num) {
+        quantum = num;
+}
 ///////////////////////////////////////
 
 int my_random(int up_limit, vector<long>* rand_num, vector<long>::iterator* rand_ite){
@@ -283,14 +317,28 @@ int put_event(deque<Event>* event_queue, Process* process, int old_state, vector
         Event event;
 	event.process = process;
 	event.old_state = old_state;
+	int cb = 0;
 	if (event.old_state == STATE_RUNNING){
+		int quantum = sched->get_quantum();
 		event.new_state = STATE_BLOCK;
-		event.transition = TRANS_TO_BLOCK;
-		int tmp_cb = my_random(process->cpu_max, rand_num, rand_ite);
-		if (process->cpu_all_time >= tmp_cb)
-			event.timestamp = cur_time + tmp_cb;
+		if (process->left_cb != 0)
+			cb = process->left_cb;
 		else
-			event.timestamp = cur_time + process->cpu_all_time;
+			cb = my_random(process->cpu_max, rand_num, rand_ite);
+		if (process->cpu_all_time < cb)
+			cb = process->cpu_all_time;
+		if (process->left_cb != 0)
+			process->left_cb = process->left_cb - cb;
+		if (cb < quantum){
+			event.transition = TRANS_TO_BLOCK;
+			event.timestamp = cur_time + cb;
+		}
+		else{
+			//when preempt happens
+			event.transition = TRANS_TO_PREEMPT;
+			event.timestamp = cur_time + quantum;
+			process->left_cb = cb - quantum; 
+		}
 		//if process is still running in cpu
 		(*cur_end_time) = event.timestamp;		
 	}
@@ -301,7 +349,7 @@ int put_event(deque<Event>* event_queue, Process* process, int old_state, vector
 		(*cur_end_time) = cur_time;
 	}
 	insert_queue(event_queue, event);
-	return event.timestamp - cur_time;
+	return cb;
 }
 
 int create_info (MidInfo* info, int start_time, int process_num, int last_time, int prev_state, int next_state,int cb, int ib, int rem, int prio) {
@@ -360,8 +408,11 @@ void print_info(MidInfo info){
 		printf("\n");
 	else if (info.prev_state == STATE_READY)
 		printf(" cb=%d rem=%d prio=%d\n", info.cb, info.rem, info.prio);
-	else if (info.prev_state == STATE_RUNNING)
+	else if (info.prev_state == STATE_RUNNING and info.next_state == STATE_BLOCK)
 		printf("  ib=%d rem=%d\n", info.ib, info.rem);
+	else if (info.prev_state == STATE_RUNNING and info.next_state == STATE_READY)
+		printf("  ib=%d rem=%d prio=%d\n", info.cb, info.rem, info.prio);
+	
 	}	
 }
 
@@ -416,6 +467,11 @@ int print_sum(int sched_type, vector<Process>* stat_info, vector<MidInfo>* info_
 		case 3: 
 			printf("SRTF\n");
 			break;
+		case 4: {
+			int quantum = sched->get_quantum();
+			printf("RR %d\n", quantum);
+			break;
+		}
 		default:
 			exit(1);
 	}
@@ -492,7 +548,7 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 					#ifdef DEBUG
 					print_info(info);
 					#endif
-					//set statitic info
+					
 					proc->state_prev_prev = STATE_BLOCK;
 					proc->state_prev = STATE_READY;
 					proc->state = STATE_RUNNING;
@@ -500,11 +556,24 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				break;
 
 			case TRANS_TO_PREEMPT:
+				{
 				//must come from RUNNING 
 				//add to run queue, no event is generated
 				CALL_SCHEDULER = true;
+				sched->add_to_queue(proc);	
+				//print info for RUNNING->READY			
+				create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, proc->left_cb, 0, proc->cpu_all_time, proc->prio);	
+				info_vec->push_back(info);
+				#ifdef DEBUG
+				print_info(info);
+				#endif
+				
+				proc->state_prev_prev = STATE_RUNNING;
+				proc->state_prev = STATE_READY;
+				proc->state = STATE_RUNNING;
+					
 				break;
-
+				}
 			case TRANS_TO_RUNNING:
 				{
 				//comes from READY
@@ -523,7 +592,10 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				proc->cpu_wait_time += timeInPrev;
 	
 				//for print info
-				proc->state = STATE_BLOCK;
+				if (proc->left_cb == 0)
+					proc->state = STATE_BLOCK;
+				else
+					proc->state = STATE_READY;
 				proc->state_prev = STATE_RUNNING;
 				proc->state_prev_prev = STATE_READY;
 				break;
@@ -597,6 +669,17 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 					event.new_state = STATE_RUNNING;
 					event.transition = TRANS_TO_RUNNING;
 					insert_queue(event_queue, event);
+				}else if (cur_proc->state_prev == STATE_READY and cur_proc->state_prev_prev == STATE_RUNNING){
+					Event event;
+					if (cur_proc->state_ts > cur_end_time)
+						event.timestamp = cur_proc->state_ts;
+					else
+						event.timestamp = cur_end_time;
+					event.process = cur_proc;
+					event.old_state = STATE_READY;
+					event.new_state = STATE_RUNNING;
+					event.transition = TRANS_TO_RUNNING;
+					insert_queue(event_queue, event);
 				}
 			}
 		}
@@ -635,6 +718,7 @@ int init_event_proc(ifstream* file, deque<Event>* event_queue, int max_prio, vec
 		proc->static_prio = 0;
 		proc->prio = 0;
 		proc->num = lineNum;
+		proc->left_cb = 0;
 		proc->start_time = proc->state_ts;
 		proc->total_cpu = proc->cpu_all_time;
 		proc->finish_time = 0;
@@ -671,7 +755,8 @@ int main (int argc, char* argv[])
 {
 	//create scheduler
 	int c;
-	int sched_type = 3;
+	int sched_type = 4;
+	int quantum = 10;
         /*
 	while ((c = getopt(argc,argv,"s:")) != -1 )
         {
@@ -704,6 +789,13 @@ int main (int argc, char* argv[])
             sched = srtf_scheduler;
             break;
 		}
+        case 4:{
+	    Scheduler_RR* rr_scheduler = new Scheduler_RR();  
+	    rr_scheduler->set_quantum(quantum);
+            sched = rr_scheduler;
+            break;
+		}
+	
         default:
             printf("At least specify a valid scheduler\n");
             exit(1);
