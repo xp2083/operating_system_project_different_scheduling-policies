@@ -72,7 +72,6 @@ public:
 	virtual ~Scheduler(){};
 	virtual void add_to_queue (Process* proc);
 	virtual Process* get_from_queue ();
-	virtual int remove_from_queue ();
 	virtual int get_quantum ();
 	virtual void set_quantum (int num);
 	int get_queue_size () {
@@ -85,10 +84,6 @@ void Scheduler::add_to_queue (Process* proc){
 
 Process* Scheduler::get_from_queue (){
 	return NULL;
-}
-
-int Scheduler::remove_from_queue() {
-	return 0;
 }
 
 int Scheduler::get_quantum(){
@@ -107,7 +102,6 @@ class Scheduler_fcfs: public Scheduler {
 	~Scheduler_fcfs() {};
 	void add_to_queue (Process* proc);
         Process* get_from_queue ();
-	int remove_from_queue ();
 	int get_quantum ();
 	void set_quantum (int num);
 	int get_queue_size ();
@@ -129,11 +123,6 @@ Process* Scheduler_fcfs::get_from_queue() {
 	return NULL;
 }
 
-int Scheduler_fcfs::remove_from_queue() {
-	run_queue.pop_front();
-	return 0;
-}
-
 int Scheduler_fcfs::get_quantum() {
         return quantum;
 }
@@ -143,6 +132,39 @@ void Scheduler_fcfs::set_quantum(int num) {
 }
 
 
+class Scheduler_lcfs: public Scheduler {
+	public:
+	~Scheduler_lcfs() {};
+	void add_to_queue (Process* proc);
+        Process* get_from_queue ();
+	int get_quantum ();
+	void set_quantum (int num);
+	int get_queue_size ();
+};
+
+void Scheduler_lcfs::add_to_queue(Process* proc) {
+	run_queue.push_back(proc);
+	//printf("in add_to_queue size of sched queue %d\n", sched->get_queue_size());
+	//printf("%s Q=%d\n", __FUNCTION__, obj->run_queue);
+}
+
+Process* Scheduler_lcfs::get_from_queue() {
+	//printf("%s\n", __FUNCTION__);
+	if (run_queue.size() != 0){
+		Process* tmp = run_queue.back();
+		run_queue.pop_back();
+		return tmp;
+	}
+	return NULL;
+}
+
+int Scheduler_lcfs::get_quantum() {
+        return quantum;
+}
+
+void Scheduler_lcfs::set_quantum(int num) {
+        quantum = num;
+}
 int my_random(int up_limit, vector<long>* rand_num, vector<long>::iterator* rand_ite){
 	if (*rand_ite == rand_num->end()){
 		*rand_ite = rand_num->begin();
@@ -335,6 +357,9 @@ int print_sum(int sched_type, vector<Process>* stat_info, vector<MidInfo>* info_
 		case 1:
 			printf("FCFS\n");
 			break;
+		case 2: 
+			printf("LCFS\n");
+			break;
 		default:
 			exit(1);
 	}
@@ -481,8 +506,6 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 						insert_process(stat_info, proc);	
 					}
 					cur_proc = NULL;
-					//from run_queue remove current process
-				//	sched->remove_from_queue();
 				break;
 		}
 		if(CALL_SCHEDULER){
@@ -592,7 +615,7 @@ int main (int argc, char* argv[])
 {
 	//create scheduler
 	int c;
-	int sched_type = 1;
+	int sched_type = 2;
         /*
 	while ((c = getopt(argc,argv,"s:")) != -1 )
         {
@@ -613,8 +636,12 @@ int main (int argc, char* argv[])
             sched = fcfs_scheduler;
             break;
 		}
-        case 2:
+        case 2:{
+	    Scheduler_lcfs* lcfs_scheduler = new Scheduler_lcfs();  
+	    lcfs_scheduler->set_quantum(1000000);
+            sched = lcfs_scheduler;
             break;
+		}
         default:
             printf("At least specify a valid scheduler\n");
             exit(1);
@@ -629,7 +656,7 @@ int main (int argc, char* argv[])
 	}
         
 	//open rand file 
-        char rand_file_path [vecSize]= "./rfile_2";
+        char rand_file_path [vecSize]= "./rfile";
 	ifstream rand_file(rand_file_path);
 	if (!rand_file.is_open()){
 		printf("no open\n");
