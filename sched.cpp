@@ -97,9 +97,9 @@ void Scheduler::set_quantum(int num){
 Scheduler* sched;  // that's the only object we use in global algo
 int rand_cnt = 2; 
 
-class Scheduler_fcfs: public Scheduler {
+class Scheduler_FCFS: public Scheduler {
 	public:
-	~Scheduler_fcfs() {};
+	~Scheduler_FCFS() {};
 	void add_to_queue (Process* proc);
         Process* get_from_queue ();
 	int get_quantum ();
@@ -107,13 +107,13 @@ class Scheduler_fcfs: public Scheduler {
 	int get_queue_size ();
 };
 
-void Scheduler_fcfs::add_to_queue(Process* proc) {
+void Scheduler_FCFS::add_to_queue(Process* proc) {
 	run_queue.push_back(proc);
 	//printf("in add_to_queue size of sched queue %d\n", sched->get_queue_size());
 	//printf("%s Q=%d\n", __FUNCTION__, obj->run_queue);
 }
 
-Process* Scheduler_fcfs::get_from_queue() {
+Process* Scheduler_FCFS::get_from_queue() {
 	//printf("%s\n", __FUNCTION__);
 	if (run_queue.size() != 0){
 		Process* tmp = run_queue.front();
@@ -123,18 +123,18 @@ Process* Scheduler_fcfs::get_from_queue() {
 	return NULL;
 }
 
-int Scheduler_fcfs::get_quantum() {
+int Scheduler_FCFS::get_quantum() {
         return quantum;
 }
 
-void Scheduler_fcfs::set_quantum(int num) {
+void Scheduler_FCFS::set_quantum(int num) {
         quantum = num;
 }
 
 
-class Scheduler_lcfs: public Scheduler {
+class Scheduler_LCFS: public Scheduler {
 	public:
-	~Scheduler_lcfs() {};
+	~Scheduler_LCFS() {};
 	void add_to_queue (Process* proc);
         Process* get_from_queue ();
 	int get_quantum ();
@@ -142,13 +142,13 @@ class Scheduler_lcfs: public Scheduler {
 	int get_queue_size ();
 };
 
-void Scheduler_lcfs::add_to_queue(Process* proc) {
+void Scheduler_LCFS::add_to_queue(Process* proc) {
 	run_queue.push_back(proc);
 	//printf("in add_to_queue size of sched queue %d\n", sched->get_queue_size());
 	//printf("%s Q=%d\n", __FUNCTION__, obj->run_queue);
 }
 
-Process* Scheduler_lcfs::get_from_queue() {
+Process* Scheduler_LCFS::get_from_queue() {
 	//printf("%s\n", __FUNCTION__);
 	if (run_queue.size() != 0){
 		Process* tmp = run_queue.back();
@@ -158,13 +158,66 @@ Process* Scheduler_lcfs::get_from_queue() {
 	return NULL;
 }
 
-int Scheduler_lcfs::get_quantum() {
+int Scheduler_LCFS::get_quantum() {
         return quantum;
 }
 
-void Scheduler_lcfs::set_quantum(int num) {
+void Scheduler_LCFS::set_quantum(int num) {
         quantum = num;
 }
+
+class Scheduler_SRTF: public Scheduler {
+	public:
+	~Scheduler_SRTF() {};
+	void add_to_queue (Process* proc);
+        Process* get_from_queue ();
+	int get_quantum ();
+	void set_quantum (int num);
+	int get_queue_size ();
+};
+
+void Scheduler_SRTF::add_to_queue(Process* proc) {
+	deque<Process*>::iterator ite = run_queue.begin();
+	if(run_queue.size() == 0)
+		run_queue.push_back(proc);
+	else{
+		while(ite != run_queue.end()){
+		if (proc->cpu_all_time >= (*ite)->cpu_all_time)
+		//add = means if there is a same remaining time process, 
+		//the new process should stays behind it
+			ite++;
+		else
+			break;
+		}
+		if (ite != run_queue.end())
+			run_queue.insert(ite, proc);
+		else	 	
+			run_queue.push_back(proc);
+	//printf("in add_to_queue size of sched queue %d\n", sched->get_queue_size());
+	//printf("%s Q=%d\n", __FUNCTION__, obj->run_queue);
+	}
+}
+
+Process* Scheduler_SRTF::get_from_queue() {
+	//printf("%s\n", __FUNCTION__);
+	if (run_queue.size() != 0){
+		Process* tmp = run_queue.front();
+		run_queue.pop_front();
+		return tmp;
+	}
+	return NULL;
+}
+
+int Scheduler_SRTF::get_quantum() {
+        return quantum;
+}
+
+void Scheduler_SRTF::set_quantum(int num) {
+        quantum = num;
+}
+
+///////////////////////////////////////
+
 int my_random(int up_limit, vector<long>* rand_num, vector<long>::iterator* rand_ite){
 	if (*rand_ite == rand_num->end()){
 		*rand_ite = rand_num->begin();
@@ -359,6 +412,9 @@ int print_sum(int sched_type, vector<Process>* stat_info, vector<MidInfo>* info_
 			break;
 		case 2: 
 			printf("LCFS\n");
+			break;
+		case 3: 
+			printf("SRTF\n");
 			break;
 		default:
 			exit(1);
@@ -615,7 +671,7 @@ int main (int argc, char* argv[])
 {
 	//create scheduler
 	int c;
-	int sched_type = 2;
+	int sched_type = 3;
         /*
 	while ((c = getopt(argc,argv,"s:")) != -1 )
         {
@@ -631,15 +687,21 @@ int main (int argc, char* argv[])
         switch (sched_type) {
         case 1:
 		{
-	    Scheduler_fcfs* fcfs_scheduler = new Scheduler_fcfs();  
+	    Scheduler_FCFS* fcfs_scheduler = new Scheduler_FCFS();  
 	    fcfs_scheduler->set_quantum(1000000);
             sched = fcfs_scheduler;
             break;
 		}
         case 2:{
-	    Scheduler_lcfs* lcfs_scheduler = new Scheduler_lcfs();  
+	    Scheduler_LCFS* lcfs_scheduler = new Scheduler_LCFS();  
 	    lcfs_scheduler->set_quantum(1000000);
             sched = lcfs_scheduler;
+            break;
+		}
+        case 3:{
+	    Scheduler_SRTF* srtf_scheduler = new Scheduler_SRTF();  
+	    srtf_scheduler->set_quantum(1000000);
+            sched = srtf_scheduler;
             break;
 		}
         default:
