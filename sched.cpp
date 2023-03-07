@@ -317,27 +317,27 @@ int put_event(deque<Event>* event_queue, Process* process, int old_state, vector
         Event event;
 	event.process = process;
 	event.old_state = old_state;
-	int cb = 0;
+	int run_time = 0;
 	if (event.old_state == STATE_RUNNING){
 		int quantum = sched->get_quantum();
 		event.new_state = STATE_BLOCK;
 		if (process->left_cb != 0)
-			cb = process->left_cb;
+			run_time = process->left_cb;
 		else
-			cb = my_random(process->cpu_max, rand_num, rand_ite);
-		if (process->cpu_all_time < cb)
-			cb = process->cpu_all_time;
+			run_time = my_random(process->cpu_max, rand_num, rand_ite);
+		if (process->cpu_all_time < run_time)
+			run_time = process->cpu_all_time;
 		if (process->left_cb != 0)
-			process->left_cb = process->left_cb - cb;
-		if (cb < quantum){
+			process->left_cb = process->left_cb - run_time;
+		if (run_time <= quantum){
 			event.transition = TRANS_TO_BLOCK;
-			event.timestamp = cur_time + cb;
+			event.timestamp = cur_time + run_time;
 		}
 		else{
 			//when preempt happens
 			event.transition = TRANS_TO_PREEMPT;
 			event.timestamp = cur_time + quantum;
-			process->left_cb = cb - quantum; 
+			process->left_cb = run_time - quantum; 
 		}
 		//if process is still running in cpu
 		(*cur_end_time) = event.timestamp;		
@@ -345,11 +345,12 @@ int put_event(deque<Event>* event_queue, Process* process, int old_state, vector
 	else if (event.old_state == STATE_BLOCK){
 		event.new_state	= STATE_READY;
 		event.transition = TRANS_TO_READY;
-		event.timestamp = cur_time + my_random(process->io_max, rand_num, rand_ite);;
+		run_time = my_random(process->io_max, rand_num, rand_ite);
+		event.timestamp = cur_time + run_time;
 		(*cur_end_time) = cur_time;
 	}
 	insert_queue(event_queue, event);
-	return cb;
+	return run_time;
 }
 
 int create_info (MidInfo* info, int start_time, int process_num, int last_time, int prev_state, int next_state,int cb, int ib, int rem, int prio) {
@@ -411,7 +412,7 @@ void print_info(MidInfo info){
 	else if (info.prev_state == STATE_RUNNING and info.next_state == STATE_BLOCK)
 		printf("  ib=%d rem=%d\n", info.ib, info.rem);
 	else if (info.prev_state == STATE_RUNNING and info.next_state == STATE_READY)
-		printf("  ib=%d rem=%d prio=%d\n", info.cb, info.rem, info.prio);
+		printf("  cb=%d rem=%d prio=%d\n", info.cb, info.rem, info.prio);
 	
 	}	
 }
@@ -561,7 +562,9 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				//add to run queue, no event is generated
 				CALL_SCHEDULER = true;
 				sched->add_to_queue(proc);	
-				//print info for RUNNING->READY			
+				proc->state_ts = cur_time;	
+				proc->cpu_all_time = proc->cpu_all_time - timeInPrev;	
+				//print info for RUNNING->READY	
 				create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, proc->left_cb, 0, proc->cpu_all_time, proc->prio);	
 				info_vec->push_back(info);
 				#ifdef DEBUG
@@ -571,7 +574,7 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				proc->state_prev_prev = STATE_RUNNING;
 				proc->state_prev = STATE_READY;
 				proc->state = STATE_RUNNING;
-					
+				cur_proc = NULL;		
 				break;
 				}
 			case TRANS_TO_RUNNING:
@@ -588,7 +591,7 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				print_info(info);
 				#endif
 				//add stat info 
-				proc->cpu_utiliz_time += cb;
+				proc->cpu_utiliz_time += cb - proc->left_cb;
 				proc->cpu_wait_time += timeInPrev;
 	
 				//for print info
