@@ -70,14 +70,14 @@ class Scheduler {
 public:
 	int quantum;
 	deque<Process*> run_queue;
+	        int max_prio;
+        vector< deque<Process*>* > run_queue_list;
+        vector< deque<Process*>* > expire_queue_list;
 	virtual ~Scheduler(){};
 	virtual void add_to_queue (Process* proc);
 	virtual Process* get_from_queue ();
 	virtual int get_quantum ();
 	virtual void set_quantum (int num);
-	int get_queue_size () {
-		return run_queue.size();
-	}
 };
 
 void Scheduler::add_to_queue (Process* proc){
@@ -105,13 +105,10 @@ class Scheduler_FCFS: public Scheduler {
         Process* get_from_queue ();
 	int get_quantum ();
 	void set_quantum (int num);
-	int get_queue_size ();
 };
 
 void Scheduler_FCFS::add_to_queue(Process* proc) {
 	run_queue.push_back(proc);
-	//printf("in add_to_queue size of sched queue %d\n", sched->get_queue_size());
-	//printf("%s Q=%d\n", __FUNCTION__, obj->run_queue);
 }
 
 Process* Scheduler_FCFS::get_from_queue() {
@@ -140,13 +137,10 @@ class Scheduler_LCFS: public Scheduler {
         Process* get_from_queue ();
 	int get_quantum ();
 	void set_quantum (int num);
-	int get_queue_size ();
 };
 
 void Scheduler_LCFS::add_to_queue(Process* proc) {
 	run_queue.push_back(proc);
-	//printf("in add_to_queue size of sched queue %d\n", sched->get_queue_size());
-	//printf("%s Q=%d\n", __FUNCTION__, obj->run_queue);
 }
 
 Process* Scheduler_LCFS::get_from_queue() {
@@ -174,7 +168,6 @@ class Scheduler_SRTF: public Scheduler {
         Process* get_from_queue ();
 	int get_quantum ();
 	void set_quantum (int num);
-	int get_queue_size ();
 };
 
 void Scheduler_SRTF::add_to_queue(Process* proc) {
@@ -194,8 +187,6 @@ void Scheduler_SRTF::add_to_queue(Process* proc) {
 			run_queue.insert(ite, proc);
 		else	 	
 			run_queue.push_back(proc);
-	//printf("in add_to_queue size of sched queue %d\n", sched->get_queue_size());
-	//printf("%s Q=%d\n", __FUNCTION__, obj->run_queue);
 	}
 }
 
@@ -219,15 +210,19 @@ void Scheduler_SRTF::set_quantum(int num) {
 
 class Scheduler_RR: public Scheduler {
 	public:
+	//int max_prio;
+	Scheduler_RR(int prio) {
+		max_prio = prio;	
+	};
 	~Scheduler_RR() {};
 	void add_to_queue (Process* proc);
         Process* get_from_queue ();
 	int get_quantum ();
 	void set_quantum (int num);
-	int get_queue_size ();
 };
 
 void Scheduler_RR::add_to_queue(Process* proc) {
+	proc->prio = proc->static_prio-1;
 	run_queue.push_back(proc);
 }
 
@@ -251,40 +246,52 @@ void Scheduler_RR::set_quantum(int num) {
 
 class Scheduler_PRIO: public Scheduler {
 	public:
+	//int max_prio;
+	//vector< deque<Process*>* > run_queue_list;
+	//vector< deque<Process*>* > expire_queue_list;
+	Scheduler_PRIO(int prio);
 	~Scheduler_PRIO() {};
 	void add_to_queue (Process* proc);
         Process* get_from_queue ();
 	int get_quantum ();
 	void set_quantum (int num);
-	int get_queue_size ();
 };
 
-void Scheduler_PRIO::add_to_queue(Process* proc) {
-	deque<Process*>::iterator ite = run_queue.begin();
-	if(run_queue.size() == 0)
-		run_queue.push_back(proc);
-	else{
-		while(ite != run_queue.end()){
-		if (proc->prio <= (*ite)->prio)
-			ite++;
-		else
-			break;
-		}
-		if (ite != run_queue.end())
-			run_queue.insert(ite, proc);
-		else	 	
-			run_queue.push_back(proc);
+Scheduler_PRIO::Scheduler_PRIO(int prio){
+	max_prio = prio;
+	for (int i=0; i < max_prio; i++){
+		deque<Process*>* run_queue = (deque<Process*>*) malloc (sizeof(deque<Process*>));
+		deque<Process*>* expire_queue = (deque<Process*>*) malloc (sizeof(deque<Process*>));
+		run_queue_list.push_back(run_queue);
+		expire_queue_list.push_back(expire_queue);
 	}
+}
+
+void Scheduler_PRIO::add_to_queue(Process* proc) {
+	if (proc->prio == -1){
+		proc->prio = proc->static_prio - 1;
+		(expire_queue_list[proc->prio])->push_back(proc);
+	}
+	else
+		(run_queue_list[proc->prio])->push_back(proc);	
 }
 
 Process* Scheduler_PRIO::get_from_queue() {
 	//printf("%s\n", __FUNCTION__);
-	if (run_queue.size() != 0){
-		Process* tmp = run_queue.front();
-		run_queue.pop_front();
-		return tmp;
-	}
-	return NULL;
+	Process* tmp = NULL;
+		for (int i=max_prio-1; i >=0; i--){
+			if ((run_queue_list[i])->size() == 0){
+			deque<Process*>* tmp = run_queue_list[i];
+			run_queue_list[i] = expire_queue_list[i];
+			expire_queue_list[i] = tmp;
+		}
+		if ((run_queue_list[i])->size() > 0){
+			tmp = run_queue_list[i]->front();
+			run_queue_list[i]->pop_front();
+			break;
+		}
+	} 
+	return tmp;
 }
 
 int Scheduler_PRIO::get_quantum() {
@@ -371,11 +378,13 @@ int put_event(deque<Event>* event_queue, Process* process, int old_state, vector
 			run_time = my_random(process->cpu_max, rand_num, rand_ite);
 		if (process->cpu_all_time < run_time)
 			run_time = process->cpu_all_time;
-		if (process->left_cb != 0)
-			process->left_cb = process->left_cb - run_time;
+		//if (process->left_cb != 0)
+		//	process->left_cb = process->left_cb - run_time;
 		if (run_time <= quantum){
 			event.transition = TRANS_TO_BLOCK;
 			event.timestamp = cur_time + run_time;
+			if (process->left_cb != 0)
+				process->left_cb = process->left_cb - run_time;
 		}
 		else{
 			//when preempt happens
@@ -579,7 +588,7 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				if (proc->state == STATE_CREATED){
 					//come from CREATED
 				         //print info for CREATED->READY
-				        proc->state = STATE_READY;
+				        //proc->state = STATE_READY;
 				        create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, 0, 0, proc->cpu_all_time, proc->prio);	
 					info_vec->push_back(info);
 					#ifdef DEBUG
@@ -623,9 +632,7 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				proc->state_prev_prev = STATE_RUNNING;
 				proc->state_prev = STATE_READY;
 				proc->state = STATE_RUNNING;
-				proc->prio = proc->prio-1;
-				if (proc->prio == -1)
-					proc->prio = proc->static_prio - 1;
+				proc->prio = proc->prio - 1;
 				sched->add_to_queue(proc);	
 				cur_proc = NULL;		
 				break;
@@ -689,7 +696,7 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 						proc->run_time = proc->finish_time - proc->start_time;
 						insert_process(stat_info, proc);	
 					}
-					proc->prio = proc->static_prio-1;
+					proc->prio = proc->static_prio - 1;
 					cur_proc = NULL;
 				break;
 		}
@@ -769,7 +776,7 @@ int init_event_proc(ifstream* file, deque<Event>* event_queue, int max_prio, vec
 			cnt++;
 		} 	
 		proc->state_dura = 0;
-		proc->state = STATE_CREATED;
+		proc->state = STATE_READY;
 		proc->state_prev = STATE_CREATED;
 		proc->state_prev_prev = STATE_CREATED;
 		proc->static_prio = 0;
@@ -825,6 +832,7 @@ int main (int argc, char* argv[])
         }*/
 
 	int max_prio = 5;
+	//int max_prio = 4;
 
         switch (sched_type) {
         case 1:
@@ -847,14 +855,15 @@ int main (int argc, char* argv[])
             break;
 		}
         case 4:{
-	    Scheduler_RR* rr_scheduler = new Scheduler_RR();  
+	    Scheduler_RR* rr_scheduler = new Scheduler_RR(max_prio);  
 	    rr_scheduler->set_quantum(quantum);
             sched = rr_scheduler;
             break;
 		}
         case 5:{
-	    Scheduler_PRIO* prio_scheduler = new Scheduler_PRIO();  
+	    Scheduler_PRIO* prio_scheduler = new Scheduler_PRIO(max_prio);  
 	    prio_scheduler->set_quantum(quantum);
+	
             sched = prio_scheduler;
             break;
 		}
