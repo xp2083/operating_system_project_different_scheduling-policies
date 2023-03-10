@@ -71,8 +71,8 @@ public:
 	int quantum;
 	deque<Process*> run_queue;
 	        int max_prio;
-        vector< deque<Process*>* > run_queue_list;
-        vector< deque<Process*>* > expire_queue_list;
+        vector< deque<Process*> > run_queue_list;
+        vector< deque<Process*> > expire_queue_list;
 	virtual ~Scheduler(){};
 	virtual void add_to_queue (Process* proc);
 	virtual Process* get_from_queue ();
@@ -260,8 +260,8 @@ class Scheduler_PRIO: public Scheduler {
 Scheduler_PRIO::Scheduler_PRIO(int prio){
 	max_prio = prio;
 	for (int i=0; i < max_prio; i++){
-		deque<Process*>* run_queue = (deque<Process*>*) malloc (sizeof(deque<Process*>));
-		deque<Process*>* expire_queue = (deque<Process*>*) malloc (sizeof(deque<Process*>));
+		deque<Process*> run_queue;
+		deque<Process*> expire_queue; 
 		run_queue_list.push_back(run_queue);
 		expire_queue_list.push_back(expire_queue);
 	}
@@ -270,27 +270,40 @@ Scheduler_PRIO::Scheduler_PRIO(int prio){
 void Scheduler_PRIO::add_to_queue(Process* proc) {
 	if (proc->prio == -1){
 		proc->prio = proc->static_prio - 1;
-		(expire_queue_list[proc->prio])->push_back(proc);
+		(expire_queue_list[proc->prio]).push_back(proc);
 	}
 	else
-		(run_queue_list[proc->prio])->push_back(proc);	
+		(run_queue_list[proc->prio]).push_back(proc);	
 }
 
 Process* Scheduler_PRIO::get_from_queue() {
 	//printf("%s\n", __FUNCTION__);
 	Process* tmp = NULL;
-		for (int i=max_prio-1; i >=0; i--){
-			if ((run_queue_list[i])->size() == 0){
-			deque<Process*>* tmp = run_queue_list[i];
-			run_queue_list[i] = expire_queue_list[i];
-			expire_queue_list[i] = tmp;
-		}
-		if ((run_queue_list[i])->size() > 0){
-			tmp = run_queue_list[i]->front();
-			run_queue_list[i]->pop_front();
+	for (int i=max_prio-1; i >=0; i--){
+		if ((run_queue_list[i]).size() > 0){
+			tmp = run_queue_list[i].front();
+			run_queue_list[i].pop_front();
 			break;
 		}
-	} 
+	}
+	if (tmp == NULL){
+		for(int i=max_prio-1; i >=0; i--){
+			if ((run_queue_list[i]).size() == 0){
+				deque<Process*> tt = run_queue_list[i];
+				run_queue_list[i] = expire_queue_list[i];
+				expire_queue_list[i] = tt;
+
+	                }
+	}
+		for (int i=max_prio-1; i >=0; i--){
+		if ((run_queue_list[i]).size() > 0){
+			tmp = run_queue_list[i].front();
+			run_queue_list[i].pop_front();
+			break;
+		}
+	}
+			
+	}
 	return tmp;
 }
 
