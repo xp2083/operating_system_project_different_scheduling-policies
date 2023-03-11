@@ -210,9 +210,7 @@ void Scheduler_SRTF::set_quantum(int num) {
 
 class Scheduler_RR: public Scheduler {
 	public:
-	//int max_prio;
-	Scheduler_RR(int prio) {
-		max_prio = prio;	
+	Scheduler_RR() {
 	};
 	~Scheduler_RR() {};
 	void add_to_queue (Process* proc);
@@ -832,7 +830,7 @@ int main (int argc, char* argv[])
 {
 	//create scheduler
 	int c;
-	int sched_type = 5;
+	int sched_type = 4;
 	int quantum = 10;
         /*
 	while ((c = getopt(argc,argv,"s:")) != -1 )
@@ -844,8 +842,8 @@ int main (int argc, char* argv[])
                 }
         }*/
 
-	int max_prio = 5;
-	//int max_prio = 4;
+	//int max_prio = 5;
+	int max_prio = 4;
 
         switch (sched_type) {
         case 1:
@@ -868,7 +866,7 @@ int main (int argc, char* argv[])
             break;
 		}
         case 4:{
-	    Scheduler_RR* rr_scheduler = new Scheduler_RR(max_prio);  
+	    Scheduler_RR* rr_scheduler = new Scheduler_RR();  
 	    rr_scheduler->set_quantum(quantum);
             sched = rr_scheduler;
             break;
