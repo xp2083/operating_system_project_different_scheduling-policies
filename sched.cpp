@@ -421,7 +421,7 @@ Process* Scheduler_EPRIO::get_from_queue(Process* cur_proc, deque<Event>* event_
 			evt.timestamp = cur_time;
 			insert_queue(event_queue, evt);
 
-			cur_proc->left_cb = (*cur_end_time) - cur_time;
+			cur_proc->left_cb = (*cur_end_time) + cur_proc->left_cb - cur_time;
 			cur_proc->state_prev_prev = STATE_READY;
 			cur_proc->state_prev = STATE_RUNNING;
 			cur_proc->state = STATE_READY;
@@ -443,6 +443,7 @@ void Scheduler_EPRIO::set_quantum(int num) {
 
 
 int my_random(int up_limit, vector<long>* rand_num, vector<long>::iterator* rand_ite){
+	int rand_int = *(*rand_ite);
 	if (*rand_ite == rand_num->end()){
 		*rand_ite = rand_num->begin();
 	} 	 
