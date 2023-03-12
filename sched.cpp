@@ -1117,9 +1117,9 @@ int main (int argc, char* argv[])
 		}
 	}
 
-	printf("scheduler %c\n", sched_type);
-	printf("quantum %d\n", quantum);
-	printf("max_prio %d\n", max_prio);
+	//printf("scheduler %c\n", sched_type);
+	//printf("quantum %d\n", quantum);
+	//printf("max_prio %d\n", max_prio);
 
         switch (sched_type) {
         case 'F':{
