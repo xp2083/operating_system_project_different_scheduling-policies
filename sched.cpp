@@ -969,7 +969,7 @@ int main (int argc, char* argv[])
 	//create scheduler
 	int c;
 	int sched_type = 6;
-	int quantum = 10;
+	int quantum = 30;
         /*
 	while ((c = getopt(argc,argv,"s:")) != -1 )
         {
@@ -980,7 +980,7 @@ int main (int argc, char* argv[])
                 }
         }*/
 
-	int max_prio = 5;
+	int max_prio = 7;
 	//int max_prio = 4;
 
         switch (sched_type) {
@@ -1028,15 +1028,15 @@ int main (int argc, char* argv[])
         }
 
         //open input file
-	char* file_path = argv[1];
+	char* file_path = argv[2];
 	ifstream file(file_path);
 	if (!file.is_open()){
-		printf("no open\n");
+		printf("no open input file\n");
 		return -1;	
 	}
         
 	//open rand file 
-        char rand_file_path [vecSize]= "./rfile";
+        char* rand_file_path = argv[3];
 	ifstream rand_file(rand_file_path);
 	if (!rand_file.is_open()){
 		printf("no open\n");
