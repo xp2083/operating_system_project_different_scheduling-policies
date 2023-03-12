@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
+#include <unistd.h>
 #include <string>
 #include <fstream>
 #include <vector>
@@ -19,6 +21,8 @@ typedef enum {TRANS_TO_READY=1, TRANS_TO_RUNNING=2, TRANS_TO_BLOCK=3, TRANS_TO_P
 #define maxVecSize 512
 #define DEBUG 1
 #define defLimit 4
+#define maxQuan 1000000
+#define maxPrioDef 4
 
 int lineNum = 0;
 
@@ -650,28 +654,28 @@ int get_next_event_time(deque<Event>* event_queue){
 
 }
 
-int print_sum(int sched_type, vector<Process>* stat_info, vector<MidInfo>* info_vec){
+int print_sum(char sched_type, vector<Process>* stat_info, vector<MidInfo>* info_vec){
 	switch (sched_type) {
-		case 1:
+		case 'F':
 			printf("FCFS\n");
 			break;
-		case 2: 
+		case 'L': 
 			printf("LCFS\n");
 			break;
-		case 3: 
+		case 'S': 
 			printf("SRTF\n");
 			break;
-		case 4: {
+		case 'R': {
 			int quantum = sched->get_quantum();
 			printf("RR %d\n", quantum);
 			break;
 		}
-		case 5: {
+		case 'P': {
 			int quantum = sched->get_quantum();
 			printf("PRIO %d\n", quantum);
 			break;
 		}
-		case 6: {
+		case 'E': {
 			int quantum = sched->get_quantum();
 			printf("PREPRIO %d\n", quantum);
 			break;
@@ -709,6 +713,15 @@ int print_sum(int sched_type, vector<Process>* stat_info, vector<MidInfo>* info_
 	printf("SUM: %d %.2lf %.2lf %.2lf %.2lf %.3lf\n", total_time, cpu_utiliz, io_utiliz, avg_run_time, avg_wait_time, through_put);		
 }
 
+int print_mid_res(vector<MidInfo>* vec){
+	vector<MidInfo>::iterator ite = vec->begin();
+	while (ite != vec->end()){
+		print_info(*ite);
+		ite++;
+	}
+	return 0;
+}
+
 int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* rand_ite, deque<Event>* event_queue, vector<Process>* stat_info, vector<MidInfo>* info_vec){
 	Event* evt;
 	bool CALL_SCHEDULER = true;
@@ -736,9 +749,7 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				        //proc->state = STATE_READY;
 				        create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, 0, 0, proc->cpu_all_time, proc->prio);	
 					info_vec->push_back(info);
-					#ifdef DEBUG
-					print_info(info);
-					#endif
+					//print_info(info);
 					
 					proc->state_prev_prev = STATE_CREATED;
 					proc->state_prev = STATE_READY;
@@ -749,9 +760,7 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 					//print info for BLOCK->READY 
 					create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, 0, 0, proc->cpu_all_time, proc->static_prio);
 					info_vec->push_back(info);
-					#ifdef DEBUG
-					print_info(info);
-					#endif
+					//print_info(info);
 					
 					proc->state_prev_prev = STATE_BLOCK;
 					proc->state_prev = STATE_READY;
@@ -771,9 +780,7 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				//print info for RUNNING->READY	
 				create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, proc->left_cb, 0, proc->cpu_all_time, proc->prio);	
 				info_vec->push_back(info);
-				#ifdef DEBUG
-				print_info(info);
-				#endif
+				//print_info(info);
 				
 				proc->state_prev_prev = STATE_RUNNING;
 				proc->state_prev = STATE_READY;
@@ -793,9 +800,7 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				//print READY->RUNNING info
 				create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, cb, 0, proc->cpu_all_time, proc->prio);
 				info_vec->push_back(info);
-				#ifdef DEBUG
-				print_info(info);
-				#endif
+				//print_info(info);
 				//add stat info 
 				proc->cpu_utiliz_time += cb;
 				proc->cpu_wait_time += timeInPrev;
@@ -820,9 +825,7 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 						//print RUNNING->BLOCK info
 						create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, 0, ib, proc->cpu_all_time, proc->static_prio);
 						info_vec->push_back(info);
-						#ifdef DEBUG
-						print_info(info);
-						#endif
+						//print_info(info);
 						//add stat info
 						proc->io_time += ib;
 
@@ -834,9 +837,7 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 					else{
 						create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, timeInPrev, 0, proc->cpu_all_time, proc->prio);
 						info_vec->push_back(info);
-					        #ifdef DEBUG
-						print_info(info);
-						#endif
+						//print_info(info);
 					        //set statistical info
 					        proc->finish_time = cur_time;
 						proc->run_time = proc->finish_time - proc->start_time;
@@ -964,71 +965,207 @@ int init_event_proc(ifstream* file, deque<Event>* event_queue, int max_prio, vec
 	return 0;	
 }
 
+int get_num(char* sched_name){
+	int len = strlen(sched_name);   
+	char num [len+1];
+	int cnt = 0;
+	int res = 0;
+	for (int i=0; i < len; i++){
+		if (isdigit(sched_name[i]))
+			num[cnt++] = sched_name[i];
+		else{
+			break;
+		}
+	}
+	num[cnt] = '\0';
+	res = atoi(num);
+	return res;
+}
+
 int main (int argc, char* argv[])
 {
-	//create scheduler
 	int c;
-	int sched_type = 6;
-	int quantum = 30;
-        /*
-	while ((c = getopt(argc,argv,"s:")) != -1 )
-        {
-                switch(c) {
-                case 's':
-                        schedtype = atoi(optarg);
-                        break;
-                }
-        }*/
+	char sched_type;
+	char* sched_name = NULL;
+	int quantum = 0;
+	int is_print_mid = 0;
+	int max_prio = 0;
 
-	int max_prio = 7;
-	//int max_prio = 4;
+	while ((c = getopt(argc, argv, "vs:")) != -1 )
+	{
+		switch(c) {
+			case 's':{
+					 sched_name = optarg;	
+					 if (sched_name[0] == 'F'){
+						 sched_type = 'F';
+						 quantum = maxQuan;
+						 max_prio = maxPrioDef;
+					 }
+					 else if(sched_name[0] == 'L'){
+						 sched_type = 'L';
+						 quantum = maxQuan;
+						 max_prio = maxPrioDef;	
+					 }
+					 else if(sched_name[0] == 'S'){
+						 sched_type = 'S';
+						 quantum = maxQuan;
+						 max_prio = maxPrioDef;	 
+					 }
+					 else if(sched_name[0] == 'R'){
+						 sched_type = 'R';	
+						 if(!isdigit(sched_name[1])){
+							 printf("Invalid scheduler param <%s>\n", sched_name);
+							 return -1;
+						 }else{
+							 quantum = get_num(&(sched_name[1]));
+							 if (quantum == 0){
+							 	printf("Invalid scheduler param <%s>\n", sched_name);
+							 	return -1;
+							 }
+							 max_prio = maxPrioDef;
+						 }	
+					 }
+					 else if(sched_name[0] == 'P'){
+						 sched_type = 'P';
+						 int len = strlen(sched_name);
+						 char tmp_sched_name [len];
+						 for (int i=0; i < len; i++)
+							tmp_sched_name[i] = sched_name[i];	 
+						 const char* delim = ":";
+						 char* quantum_str = strtok(&(tmp_sched_name[1]), delim);
+						 char* prio_str = strtok(NULL, delim);
+						 if(!isdigit(quantum_str[0])){
+							 printf("Invalid scheduler param <%s>\n", sched_name);
+							 return -1;
+						 }else{
+							 quantum = get_num(quantum_str);
+							 if (quantum == 0){
+							 	printf("Invalid scheduler param <%s>\n", sched_name);
+							 	return -1;
+							 }
+							 if (prio_str == NULL){
+								 max_prio = maxPrioDef;
+							 }
+							 else{
+								 if (!isdigit(prio_str[0])){
+							 		printf("Invalid scheduler param <%s>\n", sched_name);
+									 return -1;
+								 }
+								 else{
+									 max_prio = get_num(prio_str);
+							 		 if (max_prio == 0){
+							 			printf("Invalid scheduler param <%s>\n", sched_name);
+							 			return -1;
+							 		 }
+								 }
+							 }
+						 }
+					 }
+					 else if(sched_name[0] == 'E'){
+						 sched_type = 'E';
+						 int len = strlen(sched_name);
+						 char tmp_sched_name [len];
+						 for (int i=0; i < len; i++)
+							tmp_sched_name[i] = sched_name[i];	 
+						 const char* delim = ":";
+						 char* quantum_str = strtok(&(tmp_sched_name[1]), delim);
+						 char* prio_str = strtok(NULL, delim);
+						 if(!isdigit(quantum_str[0])){
+							 printf("Invalid scheduler param <%s>\n", sched_name);
+							 return -1;
+						 }else{
+							 quantum = get_num(quantum_str);
+							 if (quantum == 0){
+							 	printf("Invalid scheduler param <%s>\n", sched_name);
+							 	return -1;
+							 }
+							 if (prio_str == NULL){
+								 max_prio = maxPrioDef;
+							 }
+							 else{
+								 if (!isdigit(prio_str[0])){
+							 		printf("Invalid scheduler param <%s>\n", sched_name);
+									 return -1;
+								 }
+								 else{
+									 max_prio = get_num(prio_str);
+							 		 if (max_prio == 0){
+							 			printf("Invalid scheduler param <%s>\n", sched_name);
+							 			return -1;
+							 		 }
+								 }
+							 }
+						 }
+					 }
+					 else{	
+						 printf("Unknown Scheduler spec: -v {FLSRPE}\n");			
+						 return -1;
+					 }
+					 break;
+				 }
+			case 'v':
+				 is_print_mid = 1;
+				 break;
+			case '?':
+				printf("Usage: ./sched [-v] [-t] [-e] [-p] [-i] [-s sched] inputfile randomfile\n");
+				printf("   -v enables verbose\n");
+				printf("   -t enables scheduler details\n");
+				printf("   -e enables event tracing\n");
+				printf("   -p enables E scheduler preempton tracing\n");
+				printf("   -i single steps event by event\n");
+				return -1;
+		}
+	}
+
+	printf("scheduler %c\n", sched_type);
+	printf("quantum %d\n", quantum);
+	printf("max_prio %d\n", max_prio);
 
         switch (sched_type) {
-        case 1:
-		{
+        case 'F':{
 	    Scheduler_FCFS* fcfs_scheduler = new Scheduler_FCFS();  
-	    fcfs_scheduler->set_quantum(1000000);
+	    fcfs_scheduler->set_quantum(quantum);
             sched = fcfs_scheduler;
             break;
 		}
-        case 2:{
+        case 'L':{
 	    Scheduler_LCFS* lcfs_scheduler = new Scheduler_LCFS();  
-	    lcfs_scheduler->set_quantum(1000000);
+	    lcfs_scheduler->set_quantum(quantum);
             sched = lcfs_scheduler;
             break;
 		}
-        case 3:{
+        case 'S':{
 	    Scheduler_SRTF* srtf_scheduler = new Scheduler_SRTF();  
-	    srtf_scheduler->set_quantum(1000000);
+	    srtf_scheduler->set_quantum(quantum);
             sched = srtf_scheduler;
             break;
 		}
-        case 4:{
+        case 'R':{
 	    Scheduler_RR* rr_scheduler = new Scheduler_RR();  
 	    rr_scheduler->set_quantum(quantum);
             sched = rr_scheduler;
             break;
 		}
-        case 5:{
+        case 'P':{
 	    Scheduler_PRIO* prio_scheduler = new Scheduler_PRIO(max_prio);  
 	    prio_scheduler->set_quantum(quantum);
             sched = prio_scheduler;
             break;
 		}
-        case 6:{
+        case 'E':{
 	    Scheduler_EPRIO* eprio_scheduler = new Scheduler_EPRIO(max_prio);  
 	    eprio_scheduler->set_quantum(quantum);
             sched = eprio_scheduler;
             break;
 		}
-	
-        default:
-            printf("At least specify a valid scheduler\n");
-            exit(1);
         }
 
         //open input file
-	char* file_path = argv[2];
+        if (argc < optind+2){
+		printf("input arguments not enough\n");
+		return -1;
+	}
+	char* file_path = argv[optind++];
 	ifstream file(file_path);
 	if (!file.is_open()){
 		printf("no open input file\n");
@@ -1036,10 +1173,10 @@ int main (int argc, char* argv[])
 	}
         
 	//open rand file 
-        char* rand_file_path = argv[3];
+        char* rand_file_path = argv[optind];
 	ifstream rand_file(rand_file_path);
 	if (!rand_file.is_open()){
-		printf("no open\n");
+		printf("no open rand file\n");
 		return -1;	
 	}
 
@@ -1064,6 +1201,10 @@ int main (int argc, char* argv[])
 	vector<Process> stat_proc_info;
 	vector<MidInfo> info_vec;
 	simulation(&file, &rand_num, &rand_ite, &event_queue, &stat_proc_info, &info_vec);
+
+	if (is_print_mid == 1){
+		print_mid_res(&info_vec);
+	}
 
 	//print summation
 	print_sum(sched_type, &stat_proc_info, &info_vec);
