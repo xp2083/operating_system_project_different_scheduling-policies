@@ -1,3 +1,4 @@
+/*
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,9 +11,10 @@
 #include <sstream>
 #include <iostream>
 #include <climits>
-#include <deque>
+#include <deque>*/
+#include "sched.h"
 using namespace std;
-
+/*
 typedef enum {STATE_CREATED=1, STATE_READY=2, STATE_RUNNING=3, STATE_BLOCK=4} process_state_t;
 typedef enum {TRANS_TO_READY=1, TRANS_TO_RUNNING=2, TRANS_TO_BLOCK=3, TRANS_TO_PREEMPT=4} procee_strans_state;
 
@@ -91,12 +93,13 @@ int insert_queue(deque<Event>* event_queue, Event eve){
 }
 
 class Scheduler {
-public:
+protected:
 	int quantum;
 	deque<Process*> run_queue;
 	        int max_prio;
         vector< deque<Process*> > run_queue_list;
         vector< deque<Process*> > expire_queue_list;
+public:	
 	virtual ~Scheduler(){};
 	virtual void add_to_queue (Process* proc);
 	virtual Process* get_from_queue (Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time);
@@ -442,9 +445,10 @@ int Scheduler_EPRIO::get_quantum() {
 
 void Scheduler_EPRIO::set_quantum(int num) {
  quantum = num;
-}
+}*/
 ///////////////////////////////////////
-
+int lineNum = 0;
+Scheduler* sched;  // that's the only object we use in global algo
 
 int my_random(int up_limit, vector<long>* rand_num, vector<long>::iterator* rand_ite){
 	int rand_int = *(*rand_ite);
@@ -454,7 +458,6 @@ int my_random(int up_limit, vector<long>* rand_num, vector<long>::iterator* rand
 	 if (up_limit == 0)
 		up_limit = defLimit;	
 	 int rand_res = ((**rand_ite) % up_limit) + 1;
-	 //printf("rand_num %lu\n", rand_num[rand_cnt]);
 	 //printf("rand_res %d\n", rand_res);
 	 (*rand_ite)++;
 	 return rand_res;
@@ -487,7 +490,7 @@ int insert_process(vector<Process>* stat_info, Process* proc){
 			stat_info->push_back(*proc);
 	}
 }
-/*
+
 int insert_queue(deque<Event>* event_queue, Event eve){
 	deque<Event>::iterator ite = event_queue->begin();
 	if (event_queue->size() == 0){
@@ -506,7 +509,7 @@ int insert_queue(deque<Event>* event_queue, Event eve){
 			event_queue->push_back(eve);
 	}
 	return 0;
-}*/
+}
 
 int put_event(deque<Event>* event_queue, Process* process, int old_state, vector<long>* rand_num, vector<long>::iterator* rand_ite, int cur_time, int* cur_end_time){
         Event event;
