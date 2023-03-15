@@ -12,6 +12,7 @@
 #include <iostream>
 #include <climits>
 #include <deque>
+#include <exception>
 using namespace std;
 
 typedef enum {STATE_CREATED=1, STATE_READY=2, STATE_RUNNING=3, STATE_BLOCK=4} process_state_t;
@@ -76,7 +77,6 @@ class DES_layer{
 		Event* get_event();
 		int put_event(Process* process, int old_state, vector<long>* rand_num, vector<long>::iterator* rand_ite, int cur_time, int* cur_end_time);
 		int get_next_event_time();				
-		int init_event_proc(ifstream* file, int max_prio, vector<long>* rand_num, vector<long>::iterator* rand_ite);
 };
 
 class Scheduler {
@@ -173,3 +173,5 @@ int print_mid_res(vector<MidInfo>* vec);
 int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* rand_ite, deque<Event>* event_queue, vector<Process>* stat_info, vector<MidInfo>* info_vec);
 
 int get_num(char* sched_name);
+
+int init_event_proc(ifstream* file, int max_prio, vector<long>* rand_num, vector<long>::iterator* rand_ite, DES_layer* des);

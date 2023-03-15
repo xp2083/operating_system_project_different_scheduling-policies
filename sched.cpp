@@ -24,8 +24,14 @@ int DES_layer::put_event(Process* process, int old_state, vector<long>* rand_num
 		event.new_state = STATE_BLOCK;
 		if (process->left_cb != 0)
 			run_time = process->left_cb;
-		else
-			run_time = my_random(process->cpu_max, rand_num, rand_ite);
+		else{
+			try{
+				run_time = my_random(process->cpu_max, rand_num, rand_ite);
+			}catch (int){
+				*rand_ite = rand_num->begin();
+				run_time = my_random(process->cpu_max, rand_num, rand_ite);
+			}
+		}
 		if (process->cpu_all_time < run_time)
 			run_time = process->cpu_all_time;
 		//if (process->left_cb != 0)
@@ -48,7 +54,12 @@ int DES_layer::put_event(Process* process, int old_state, vector<long>* rand_num
 	else if (event.old_state == STATE_BLOCK){
 		event.new_state	= STATE_READY;
 		event.transition = TRANS_TO_READY;
-		run_time = my_random(process->io_max, rand_num, rand_ite);
+		try{
+			run_time = my_random(process->io_max, rand_num, rand_ite);
+		}catch (int){
+			*rand_ite = rand_num->begin();
+			run_time = my_random(process->cpu_max, rand_num, rand_ite);
+		}
 		event.timestamp = cur_time + run_time;
 		(*cur_end_time) = cur_time;
 	}
@@ -63,7 +74,7 @@ int DES_layer::get_next_event_time(){
 		return -1;	
 }
 
-int DES_layer::init_event_proc(ifstream* file, int max_prio, vector<long>* rand_num, vector<long>::iterator* rand_ite){
+int init_event_proc(ifstream* file, int max_prio, vector<long>* rand_num, vector<long>::iterator* rand_ite, DES_layer* des){
 	int proc_cnt = 0;
 	while (file->peek() != EOF){
 		proc_cnt++;
@@ -113,13 +124,18 @@ int DES_layer::init_event_proc(ifstream* file, int max_prio, vector<long>* rand_
 		event.old_state = STATE_CREATED;
 		event.new_state = STATE_READY;
 		event.transition = TRANS_TO_READY;
-		event_queue.push_back(event);					 
+		des->event_queue.push_back(event);					 
 
 	}
 	//create each process's static prio and prio
-	deque<Event>::iterator ite = event_queue.begin();
-	while(ite != event_queue.end()){
-		((*ite).process)->static_prio = my_random(max_prio, rand_num, rand_ite);
+	deque<Event>::iterator ite = des->event_queue.begin();
+	while(ite != des->event_queue.end()){
+		try{
+			((*ite).process)->static_prio = my_random(max_prio, rand_num, rand_ite);
+		}catch (int){
+			*rand_ite = rand_num->begin();
+			((*ite).process)->static_prio = my_random(max_prio, rand_num, rand_ite);
+		}
 		((*ite).process)->prio = ((*ite).process)->static_prio - 1;
 		ite++;
 	}
@@ -149,16 +165,15 @@ int insert_queue(deque<Event>* event_queue, Event eve){
 
 int my_random(int up_limit, vector<long>* rand_num, vector<long>::iterator* rand_ite){
 	int rand_int = *(*rand_ite);
-	if (*rand_ite == rand_num->end()){
-		*rand_ite = rand_num->begin();
-	} 	 
-	 if (up_limit == 0)
-		up_limit = defLimit;	
+	if (up_limit == 0)
+		up_limit = defLimit;
 	 int rand_res = ((**rand_ite) % up_limit) + 1;
 	 //printf("rand_res %d\n", rand_res);
-	 (*rand_ite)++;
+	 if (*rand_ite != rand_num->end())
+	 	(*rand_ite)++;
+	 else 
+		throw -1;
 	 return rand_res;
-	  
 }
 
 
@@ -1027,7 +1042,7 @@ int main (int argc, char* argv[])
         vector<long>::iterator rand_ite = rand_num.begin();
         //initialize all process and their created->ready event 
  	class DES_layer des;
-	des.init_event_proc(&file, max_prio, &rand_num, &rand_ite);
+	init_event_proc(&file, max_prio, &rand_num, &rand_ite, &des);
 
 	vector<Process> stat_proc_info;
 	vector<MidInfo> info_vec;
