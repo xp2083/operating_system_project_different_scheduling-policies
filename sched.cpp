@@ -285,8 +285,6 @@ void Scheduler_SRTF::set_quantum(int num) {
 
 void Scheduler_RR::add_to_queue(Process* proc) {
         proc->prio = proc->static_prio-1;
-        if (proc->prio == -1)
-            proc->prio = proc->static_prio - 1;
         run_queue.push_back(proc);
 }
 
@@ -610,9 +608,9 @@ int print_sum(char sched_type, vector<Process>* stat_info, vector<MidInfo>* info
 	avg_run_time /= cnt;
 	avg_wait_time /= cnt;
 	through_put = 100.00/total_time*cnt;
-	cpu_utiliz = cpu_utiliz_time/total_time*100;
+	cpu_utiliz = cpu_utiliz_time/total_time*100.0;
 	get_io_utiliz(info_vec, &io_utiliz_time);
-	io_utiliz = io_utiliz_time/total_time*100;
+	io_utiliz = io_utiliz_time/total_time*100.0;
 	printf("SUM: %d %.2lf %.2lf %.2lf %.2lf %.3lf\n", total_time, cpu_utiliz, io_utiliz, avg_run_time, avg_wait_time, through_put);		
 }
 
@@ -676,7 +674,6 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				//must come from RUNNING 
 				//add to run queue, no event is generated
 				CALL_SCHEDULER = true;
-				//sched->add_to_queue(proc);	
 				proc->state_ts = cur_time;	
 				proc->cpu_all_time = proc->cpu_all_time - timeInPrev;	
 				proc->cpu_utiliz_time -= proc->left_cb;

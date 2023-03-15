@@ -80,76 +80,76 @@ class DES_layer{
 };
 
 class Scheduler {
-protected:
-	int quantum;
-	deque<Process*> run_queue;
-	        int max_prio;
-        vector< deque<Process*> > run_queue_list;
-        vector< deque<Process*> > expire_queue_list;
-public:	
-	virtual ~Scheduler(){};
-	virtual void add_to_queue (Process* proc);
-	virtual Process* get_from_queue (Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time);
-	virtual int get_quantum ();
-	virtual void set_quantum (int num);
+	protected:
+		int quantum;
+		deque<Process*> run_queue;
+		int max_prio;
+		vector< deque<Process*> > run_queue_list;
+		vector< deque<Process*> > expire_queue_list;
+	public:	
+		virtual ~Scheduler(){};
+		virtual void add_to_queue (Process* proc);
+		virtual Process* get_from_queue (Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time);
+		virtual int get_quantum ();
+		virtual void set_quantum (int num);
 };
 
 class Scheduler_FCFS: public Scheduler {
 	public:
-	~Scheduler_FCFS() {};
-	void add_to_queue (Process* proc);
-        Process* get_from_queue (Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time);
-	int get_quantum ();
-	void set_quantum (int num);
+		~Scheduler_FCFS() {};
+		void add_to_queue (Process* proc);
+		Process* get_from_queue (Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time);
+		int get_quantum ();
+		void set_quantum (int num);
 };
 
 class Scheduler_LCFS: public Scheduler {
 	public:
-	~Scheduler_LCFS() {};
-	void add_to_queue (Process* proc);
-        Process* get_from_queue (Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time);
-	int get_quantum ();
-	void set_quantum (int num);
+		~Scheduler_LCFS() {};
+		void add_to_queue (Process* proc);
+		Process* get_from_queue (Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time);
+		int get_quantum ();
+		void set_quantum (int num);
 };
 
 class Scheduler_SRTF: public Scheduler {
 	public:
-	~Scheduler_SRTF() {};
-	void add_to_queue (Process* proc);
-	Process* get_from_queue (Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time);
-	int get_quantum ();
-	void set_quantum (int num);
+		~Scheduler_SRTF() {};
+		void add_to_queue (Process* proc);
+		Process* get_from_queue (Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time);
+		int get_quantum ();
+		void set_quantum (int num);
 };
 
 class Scheduler_RR: public Scheduler {
 	public:
-	Scheduler_RR() {
-	};
-	~Scheduler_RR() {};
-	void add_to_queue (Process* proc);
-        Process* get_from_queue (Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time);
-	int get_quantum ();
-	void set_quantum (int num);
+		Scheduler_RR() {
+		};
+		~Scheduler_RR() {};
+		void add_to_queue (Process* proc);
+		Process* get_from_queue (Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time);
+		int get_quantum ();
+		void set_quantum (int num);
 };
 
 class Scheduler_PRIO: public Scheduler {
 	public:
-	Scheduler_PRIO(int prio);
-	~Scheduler_PRIO() {};
-	void add_to_queue (Process* proc);
-        Process* get_from_queue (Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time);
-	int get_quantum ();
-	void set_quantum (int num);
+		Scheduler_PRIO(int prio);
+		~Scheduler_PRIO() {};
+		void add_to_queue (Process* proc);
+		Process* get_from_queue (Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time);
+		int get_quantum ();
+		void set_quantum (int num);
 };
 
 class Scheduler_EPRIO: public Scheduler {
 	public:
-	Scheduler_EPRIO(int prio);
-	~Scheduler_EPRIO() {};
-	void add_to_queue (Process* proc);
-        Process* get_from_queue (Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time);
-	int get_quantum ();
-	void set_quantum (int num);
+		Scheduler_EPRIO(int prio);
+		~Scheduler_EPRIO() {};
+		void add_to_queue (Process* proc);
+		Process* get_from_queue (Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time);
+		int get_quantum ();
+		void set_quantum (int num);
 };
 
 ///////////////////////////////////////
@@ -165,7 +165,6 @@ void print_info(MidInfo info);
 void get_io_utiliz(vector<MidInfo>* info_vec, double* io_utilize);
 
 void print_process(Process proc);
-
 
 int print_sum(char sched_type, vector<Process>* stat_info, vector<MidInfo>* info_vec);
 
