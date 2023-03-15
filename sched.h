@@ -75,7 +75,7 @@ class DES_layer{
 	public:
 		deque<Event> event_queue;
 		Event* get_event();
-		int put_event(Process* process, int old_state, vector<long>* rand_num, vector<long>::iterator* rand_ite, int cur_time, int* cur_end_time, bool is_preempt);
+		int put_event(Process* process, int old_state, int state_prev_prev, vector<long>* rand_num, vector<long>::iterator* rand_ite, int cur_time, int* cur_end_time, bool is_preempt);
 		int get_next_event_time();				
 		int remove_event(Process* cur_proc);
 };

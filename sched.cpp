@@ -14,7 +14,7 @@ Event* DES_layer::get_event(){
 		return NULL;
 }
 
-int DES_layer::put_event(Process* process, int old_state, vector<long>* rand_num, vector<long>::iterator* rand_ite, int cur_time, int* cur_end_time, bool is_preempt){
+int DES_layer::put_event(Process* process, int old_state, int state_prev_prev, vector<long>* rand_num, vector<long>::iterator* rand_ite, int cur_time, int* cur_end_time, bool is_preempt){
         Event event;
 	event.process = process;
 	event.old_state = old_state;
@@ -24,6 +24,30 @@ int DES_layer::put_event(Process* process, int old_state, vector<long>* rand_num
                         event.new_state = STATE_READY;
                         event.transition = TRANS_TO_PREEMPT;
                         event.timestamp = cur_time;
+	}
+	else if (event.old_state == STATE_READY and state_prev_prev == STATE_CREATED){
+					if (process->state_ts > *cur_end_time)
+						event.timestamp = process->state_ts;
+					else
+						event.timestamp = *cur_end_time;
+					event.new_state = STATE_RUNNING;
+					event.transition = TRANS_TO_RUNNING;
+	}
+	else if (event.old_state == STATE_READY and state_prev_prev == STATE_BLOCK){
+		if (process->state_ts > *cur_end_time)
+						event.timestamp = process->state_ts;
+					else
+						event.timestamp = *cur_end_time;
+					event.new_state = STATE_RUNNING;
+					event.transition = TRANS_TO_RUNNING;
+	}
+	else if (event.old_state == STATE_READY and state_prev_prev == STATE_RUNNING){
+					if (process->state_ts > *cur_end_time)
+						event.timestamp = process->state_ts;
+					else
+						event.timestamp = *cur_end_time;
+					event.new_state = STATE_RUNNING;
+					event.transition = TRANS_TO_RUNNING;
 	}
 	else if (event.old_state == STATE_RUNNING){
 		int quantum = sched->get_quantum();
@@ -732,7 +756,7 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				//comes from READY
 				//create event for next step, it is either preempt or RUNNING->BLOCK
 				proc->state_ts = cur_time;
-				int cb = des->put_event(proc, STATE_RUNNING, rand_num, rand_ite, cur_time, &cur_end_time, false);
+				int cb = des->put_event(proc, STATE_RUNNING, STATE_READY, rand_num, rand_ite, cur_time, &cur_end_time, false);
 				
 				//print READY->RUNNING info
 				create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, cb, 0, proc->cpu_all_time, proc->prio);
@@ -758,7 +782,7 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 					CALL_SCHEDULER = true;
 					if (proc->cpu_all_time > 0){
 						//create an event for BLOCK->READY
-						int ib = des->put_event(proc, STATE_BLOCK, rand_num, rand_ite, cur_time, &cur_end_time, false);
+						int ib = des->put_event(proc, STATE_BLOCK, STATE_RUNNING, rand_num, rand_ite, cur_time, &cur_end_time, false);
 						//print RUNNING->BLOCK info
 						create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, 0, ib, proc->cpu_all_time, proc->static_prio);
 						info_vec->push_back(info);
@@ -796,38 +820,11 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				//create event to make this process runnable for same time?
 				//create event for READY->RUNNING
 				if (cur_proc->state_prev == STATE_READY and cur_proc->state_prev_prev == STATE_CREATED){
-					Event event;
-					if (cur_proc->state_ts > cur_end_time)
-						event.timestamp = cur_proc->state_ts;
-					else
-						event.timestamp = cur_end_time;
-					event.process = cur_proc;
-					event.old_state = STATE_READY;
-					event.new_state = STATE_RUNNING;
-					event.transition = TRANS_TO_RUNNING;
-					insert_queue(&(des->event_queue), event);
+                 			des->put_event(cur_proc, STATE_READY, STATE_CREATED, rand_num, rand_ite, cur_time, &cur_end_time, false);
 				}else if (cur_proc->state_prev == STATE_READY and cur_proc->state_prev_prev == STATE_BLOCK){
-					Event event;
-					if (cur_proc->state_ts > cur_end_time)
-						event.timestamp = cur_proc->state_ts;
-					else
-						event.timestamp = cur_end_time;
-					event.process = cur_proc;
-					event.old_state = STATE_READY;
-					event.new_state = STATE_RUNNING;
-					event.transition = TRANS_TO_RUNNING;
-					insert_queue(&(des->event_queue), event);
+                 			des->put_event(cur_proc, STATE_READY, STATE_BLOCK, rand_num, rand_ite, cur_time, &cur_end_time, false);
 				}else if (cur_proc->state_prev == STATE_READY and cur_proc->state_prev_prev == STATE_RUNNING){
-					Event event;
-					if (cur_proc->state_ts > cur_end_time)
-						event.timestamp = cur_proc->state_ts;
-					else
-						event.timestamp = cur_end_time;
-					event.process = cur_proc;
-					event.old_state = STATE_READY;
-					event.new_state = STATE_RUNNING;
-					event.transition = TRANS_TO_RUNNING;
-					insert_queue(&(des->event_queue), event);
+                 			des->put_event(cur_proc, STATE_READY, STATE_RUNNING, rand_num, rand_ite, cur_time, &cur_end_time, false);
 				}
 			}
 			else{
@@ -835,7 +832,7 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				bool is_preempt = sched->does_preempt(cur_proc, &new_proc, &(des->event_queue), cur_time);
 				if (is_preempt == true){
 					des->remove_event(cur_proc);
-					des->put_event(cur_proc, STATE_RUNNING, rand_num, rand_ite, cur_time, &cur_end_time, is_preempt);	
+					des->put_event(cur_proc, STATE_RUNNING, STATE_READY, rand_num, rand_ite, cur_time, &cur_end_time, is_preempt);	
 				        cur_proc->left_cb = cur_end_time + cur_proc->left_cb - cur_time;
                         		cur_proc->state_prev_prev = STATE_READY;
                         		cur_proc->state_prev = STATE_RUNNING;
@@ -843,7 +840,6 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
                         		cur_end_time = cur_time;	
 					cur_proc = new_proc;
 				}
-				//cur_proc = sched->get_from_queue(cur_proc, &(des->event_queue), cur_time, &cur_end_time);
 			}
 		}
 	}
