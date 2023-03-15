@@ -17,7 +17,7 @@ using namespace std;
 
 typedef enum {STATE_CREATED=1, STATE_READY=2, STATE_RUNNING=3, STATE_BLOCK=4} process_state_t;
 typedef enum {TRANS_TO_READY=1, TRANS_TO_RUNNING=2, TRANS_TO_BLOCK=3, TRANS_TO_PREEMPT=4} procee_strans_state;
-
+typedef enum {FCFS=1, LCFS=2, SRTF=3, RR=4, PRIO=5, EPRIO=6} scheduler;
 
 #define vecSize 64
 #define maxVecSize 512
@@ -75,8 +75,9 @@ class DES_layer{
 	public:
 		deque<Event> event_queue;
 		Event* get_event();
-		int put_event(Process* process, int old_state, vector<long>* rand_num, vector<long>::iterator* rand_ite, int cur_time, int* cur_end_time);
+		int put_event(Process* process, int old_state, vector<long>* rand_num, vector<long>::iterator* rand_ite, int cur_time, int* cur_end_time, bool is_preempt);
 		int get_next_event_time();				
+		int remove_event(Process* cur_proc);
 };
 
 class Scheduler {
@@ -89,36 +90,40 @@ class Scheduler {
 	public:	
 		virtual ~Scheduler(){};
 		virtual void add_to_queue (Process* proc);
-		virtual Process* get_from_queue (Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time);
+		virtual Process* get_from_queue ();
 		virtual int get_quantum ();
 		virtual void set_quantum (int num);
+		virtual bool does_preempt(Process* cur_proc, Process** new_proc, deque<Event>* event_queue, int cur_time);
 };
 
 class Scheduler_FCFS: public Scheduler {
 	public:
 		~Scheduler_FCFS() {};
 		void add_to_queue (Process* proc);
-		Process* get_from_queue (Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time);
+		Process* get_from_queue ();
 		int get_quantum ();
 		void set_quantum (int num);
+		bool does_preempt(Process* cur_proc, Process** new_proc, deque<Event>* event_queue, int cur_time);
 };
 
 class Scheduler_LCFS: public Scheduler {
 	public:
 		~Scheduler_LCFS() {};
 		void add_to_queue (Process* proc);
-		Process* get_from_queue (Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time);
+		Process* get_from_queue ();
 		int get_quantum ();
 		void set_quantum (int num);
+		bool does_preempt(Process* cur_proc, Process** new_proc, deque<Event>* event_queue, int cur_time);
 };
 
 class Scheduler_SRTF: public Scheduler {
 	public:
 		~Scheduler_SRTF() {};
 		void add_to_queue (Process* proc);
-		Process* get_from_queue (Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time);
+		Process* get_from_queue ();
 		int get_quantum ();
 		void set_quantum (int num);
+		bool does_preempt(Process* cur_proc, Process** new_proc, deque<Event>* event_queue, int cur_time);
 };
 
 class Scheduler_RR: public Scheduler {
@@ -127,9 +132,10 @@ class Scheduler_RR: public Scheduler {
 		};
 		~Scheduler_RR() {};
 		void add_to_queue (Process* proc);
-		Process* get_from_queue (Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time);
+		Process* get_from_queue ();
 		int get_quantum ();
 		void set_quantum (int num);
+		bool does_preempt(Process* cur_proc, Process** new_proc, deque<Event>* event_queue, int cur_time);
 };
 
 class Scheduler_PRIO: public Scheduler {
@@ -137,9 +143,10 @@ class Scheduler_PRIO: public Scheduler {
 		Scheduler_PRIO(int prio);
 		~Scheduler_PRIO() {};
 		void add_to_queue (Process* proc);
-		Process* get_from_queue (Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time);
+		Process* get_from_queue ();
 		int get_quantum ();
 		void set_quantum (int num);
+		bool does_preempt(Process* cur_proc, Process** new_proc, deque<Event>* event_queue, int cur_time);
 };
 
 class Scheduler_EPRIO: public Scheduler {
@@ -147,9 +154,10 @@ class Scheduler_EPRIO: public Scheduler {
 		Scheduler_EPRIO(int prio);
 		~Scheduler_EPRIO() {};
 		void add_to_queue (Process* proc);
-		Process* get_from_queue (Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time);
+		Process* get_from_queue ();
 		int get_quantum ();
 		void set_quantum (int num);
+		bool does_preempt(Process* cur_proc, Process** new_proc, deque<Event>* event_queue, int cur_time);
 };
 
 ///////////////////////////////////////

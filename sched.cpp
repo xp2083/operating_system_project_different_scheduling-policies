@@ -14,12 +14,18 @@ Event* DES_layer::get_event(){
 		return NULL;
 }
 
-int DES_layer::put_event(Process* process, int old_state, vector<long>* rand_num, vector<long>::iterator* rand_ite, int cur_time, int* cur_end_time){
+int DES_layer::put_event(Process* process, int old_state, vector<long>* rand_num, vector<long>::iterator* rand_ite, int cur_time, int* cur_end_time, bool is_preempt){
         Event event;
 	event.process = process;
 	event.old_state = old_state;
 	int run_time = 0;
-	if (event.old_state == STATE_RUNNING){
+	if (is_preempt == true){
+                        event.old_state = STATE_RUNNING;
+                        event.new_state = STATE_READY;
+                        event.transition = TRANS_TO_PREEMPT;
+                        event.timestamp = cur_time;
+	}
+	else if (event.old_state == STATE_RUNNING){
 		int quantum = sched->get_quantum();
 		event.new_state = STATE_BLOCK;
 		if (process->left_cb != 0)
@@ -72,6 +78,18 @@ int DES_layer::get_next_event_time(){
 		return (event_queue.front()).timestamp;
 	else
 		return -1;	
+}
+
+int DES_layer::remove_event(Process* cur_proc){
+	deque<Event>::iterator ite = event_queue.begin();
+	while(ite != event_queue.end()){
+		if (ite->process != cur_proc)
+			ite++;
+		else
+			break;
+	}
+	event_queue.erase(ite);
+	return 0;
 }
 
 int init_event_proc(ifstream* file, int max_prio, vector<long>* rand_num, vector<long>::iterator* rand_ite, DES_layer* des){
@@ -198,7 +216,7 @@ int insert_process(vector<Process>* stat_info, Process* proc){
 void Scheduler::add_to_queue (Process* proc){
 }
 
-Process* Scheduler::get_from_queue (Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time){
+Process* Scheduler::get_from_queue (){
         return NULL;
 }
 
@@ -209,15 +227,17 @@ int Scheduler::get_quantum(){
 void Scheduler::set_quantum(int num){
 }
 
+bool Scheduler::does_preempt(Process* cur_proc, Process** new_proc, deque<Event>* event_queue, int cur_time){
+	return false;
+}
+
 void Scheduler_FCFS::add_to_queue(Process* proc) {
         if (proc->prio == -1)
             proc->prio = proc->static_prio - 1;
 	run_queue.push_back(proc);
 }
 
-Process* Scheduler_FCFS::get_from_queue(Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time) {
-        if (cur_proc != NULL)
-                return cur_proc;
+Process* Scheduler_FCFS::get_from_queue() {
         if (run_queue.size() != 0){
                 Process* tmp = run_queue.front();
                 run_queue.pop_front();
@@ -234,15 +254,17 @@ void Scheduler_FCFS::set_quantum(int num) {
         quantum = num;
 }
 
+bool Scheduler_FCFS::does_preempt(Process* cur_proc, Process** new_proc, deque<Event>* event_queue, int cur_time){
+	return false;
+}
+
 void Scheduler_LCFS::add_to_queue(Process* proc) {
         if (proc->prio == -1)
             proc->prio = proc->static_prio - 1;
         run_queue.push_back(proc);
 }
 
-Process* Scheduler_LCFS::get_from_queue(Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time) {
-        if (cur_proc != NULL)
-                return cur_proc;
+Process* Scheduler_LCFS::get_from_queue() {
         if (run_queue.size() != 0){
                 Process* tmp = run_queue.back();
                 run_queue.pop_back();
@@ -257,6 +279,10 @@ int Scheduler_LCFS::get_quantum() {
 
 void Scheduler_LCFS::set_quantum(int num) {
         quantum = num;
+}
+
+bool Scheduler_LCFS::does_preempt(Process* cur_proc, Process** new_proc, deque<Event>* event_queue, int cur_time){
+	return false;
 }
 
 void Scheduler_SRTF::add_to_queue(Process* proc) {
@@ -279,9 +305,7 @@ void Scheduler_SRTF::add_to_queue(Process* proc) {
         }
 }
 
-Process* Scheduler_SRTF::get_from_queue(Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time) {
-        if (cur_proc != NULL)
-                return cur_proc;
+Process* Scheduler_SRTF::get_from_queue() {
         if (run_queue.size() != 0){
                 Process* tmp = run_queue.front();
                 run_queue.pop_front();
@@ -298,14 +322,16 @@ void Scheduler_SRTF::set_quantum(int num) {
         quantum = num;
 }
 
+bool Scheduler_SRTF::does_preempt(Process* cur_proc, Process** new_proc, deque<Event>* event_queue, int cur_time){
+	return false;
+}
+
 void Scheduler_RR::add_to_queue(Process* proc) {
         proc->prio = proc->static_prio-1;
         run_queue.push_back(proc);
 }
 
-Process* Scheduler_RR::get_from_queue(Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time) {
-        if (cur_proc != NULL)
-                return cur_proc;
+Process* Scheduler_RR::get_from_queue() {
         if (run_queue.size() != 0){
                 Process* tmp = run_queue.front();
                 run_queue.pop_front();
@@ -320,6 +346,10 @@ int Scheduler_RR::get_quantum() {
 
 void Scheduler_RR::set_quantum(int num) {
         quantum = num;
+}
+
+bool Scheduler_RR::does_preempt(Process* cur_proc, Process** new_proc, deque<Event>* event_queue, int cur_time){
+	return false;
 }
 
 Scheduler_PRIO::Scheduler_PRIO(int prio){
@@ -341,36 +371,33 @@ void Scheduler_PRIO::add_to_queue(Process* proc) {
                 (run_queue_list[proc->prio]).push_back(proc);
 }
 
-Process* Scheduler_PRIO::get_from_queue(Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time) {
-        if (cur_proc != NULL)
-                return cur_proc;
-        Process* tmp = NULL;
-        for (int i=max_prio-1; i >=0; i--){
-                if ((run_queue_list[i]).size() > 0){
-                        tmp = run_queue_list[i].front();
-                        run_queue_list[i].pop_front();
-                        break;
-                }
-        }
-        if (tmp == NULL){
-                for(int i=max_prio-1; i >=0; i--){
-                        if ((run_queue_list[i]).size() == 0){
-                                deque<Process*> tt = run_queue_list[i];
-                                run_queue_list[i] = expire_queue_list[i];
-                                expire_queue_list[i] = tt;
+Process* Scheduler_PRIO::get_from_queue() {
+	Process* tmp = NULL;
+	for (int i=max_prio-1; i >=0; i--){
+		if ((run_queue_list[i]).size() > 0){
+			tmp = run_queue_list[i].front();
+			run_queue_list[i].pop_front();
+			break;
+		}
+	}
+	if (tmp == NULL){
+		for(int i=max_prio-1; i >=0; i--){
+			if ((run_queue_list[i]).size() == 0){
+				deque<Process*> tt = run_queue_list[i];
+				run_queue_list[i] = expire_queue_list[i];
+				expire_queue_list[i] = tt;
 
-                        }
-        }
-                for (int i=max_prio-1; i >=0; i--){
-                if ((run_queue_list[i]).size() > 0){
-                        tmp = run_queue_list[i].front();
-                        run_queue_list[i].pop_front();
-                        break;
-                }
-        }
-
-        }
-        return tmp;
+			}
+		}
+		for (int i=max_prio-1; i >=0; i--){
+			if ((run_queue_list[i]).size() > 0){
+				tmp = run_queue_list[i].front();
+				run_queue_list[i].pop_front();
+				break;
+			}
+		}
+	}
+	return tmp;
 }
 
 int Scheduler_PRIO::get_quantum() {
@@ -379,6 +406,10 @@ int Scheduler_PRIO::get_quantum() {
 
 void Scheduler_PRIO::set_quantum(int num) {
         quantum = num;
+}
+
+bool Scheduler_PRIO::does_preempt(Process* cur_proc, Process** new_proc, deque<Event>* event_queue, int cur_time){
+	return false;
 }
 
 Scheduler_EPRIO::Scheduler_EPRIO(int prio){
@@ -400,9 +431,8 @@ void Scheduler_EPRIO::add_to_queue(Process* proc) {
                 (run_queue_list[proc->prio]).push_back(proc);
 }
 
-Process* Scheduler_EPRIO::get_from_queue(Process* cur_proc, deque<Event>* event_queue, int cur_time, int* cur_end_time) {
+Process* Scheduler_EPRIO::get_from_queue() {
         Process* tmp = NULL;
-        if (cur_proc == NULL){
                 for (int i=max_prio-1; i >=0; i--){
                         if ((run_queue_list[i]).size() > 0){
                                 tmp = run_queue_list[i].front();
@@ -427,41 +457,6 @@ Process* Scheduler_EPRIO::get_from_queue(Process* cur_proc, deque<Event>* event_
                                 }
                         }
                 }
-        }
-        else{
-                tmp = cur_proc;
-                for (int i=max_prio-1; i >=0; i--){
-                        if ((run_queue_list[i]).size() > 0){
-                                if (cur_proc->prio < i){
-                                        tmp = run_queue_list[i].front();
-                                        break;
-                                }
-                        }
-                }
-                if (tmp != cur_proc){
-                        deque<Event>::iterator ite = event_queue->begin();
-                        while(ite != event_queue->end()){
-                                if (ite->process != cur_proc)
-                                        ite++;
-                                else
-                                        break;
-                        }
-                        Event evt = (*ite);
-                        event_queue->erase(ite);
-                        evt.old_state = STATE_RUNNING;
-                        evt.new_state = STATE_READY;
-                        evt.transition = TRANS_TO_PREEMPT;
-                        evt.timestamp = cur_time;
-                        insert_queue(event_queue, evt);
-
-                        cur_proc->left_cb = (*cur_end_time) + cur_proc->left_cb - cur_time;
-                        cur_proc->state_prev_prev = STATE_READY;
-                        cur_proc->state_prev = STATE_RUNNING;
-                        cur_proc->state = STATE_READY;
-                        (*cur_end_time) = cur_time;
-
-                }
-        }
         return tmp;
 }
 
@@ -471,6 +466,33 @@ int Scheduler_EPRIO::get_quantum() {
 
 void Scheduler_EPRIO::set_quantum(int num) {
  quantum = num;
+}
+
+bool Scheduler_EPRIO::does_preempt(Process* cur_proc, Process** new_proc, deque<Event>* event_queue, int cur_time){
+	bool is_preempt = false;
+	Process* tmp;
+       for (int i=max_prio-1; i >=0; i--){
+                        if ((run_queue_list[i]).size() > 0){
+                                if (cur_proc->prio < i){
+                                	is_preempt = true;
+					tmp = run_queue_list[i].front();
+                                        break;
+                                }
+                        }
+                }
+	deque<Event>::iterator ite = event_queue->begin();
+	while(ite != event_queue->end()){
+		if ((*ite).process == cur_proc){
+			if ((*ite).timestamp == cur_time){
+				is_preempt = false;
+				break;
+			}
+		}
+		ite++;
+	}
+	if (is_preempt == true)
+		*new_proc = tmp;
+	return is_preempt; 	
 }
 
 int create_info (MidInfo* info, int start_time, int process_num, int last_time, int prev_state, int next_state,int cb, int ib, int rem, int prio) {
@@ -572,26 +594,26 @@ void print_process(Process proc){
 
 int print_sum(char sched_type, vector<Process>* stat_info, vector<MidInfo>* info_vec){
 	switch (sched_type) {
-		case 'F':
+		case FCFS:
 			printf("FCFS\n");
 			break;
-		case 'L': 
+		case LCFS: 
 			printf("LCFS\n");
 			break;
-		case 'S': 
+		case SRTF: 
 			printf("SRTF\n");
 			break;
-		case 'R': {
+		case RR: {
 			int quantum = sched->get_quantum();
 			printf("RR %d\n", quantum);
 			break;
 		}
-		case 'P': {
+		case PRIO: {
 			int quantum = sched->get_quantum();
 			printf("PRIO %d\n", quantum);
 			break;
 		}
-		case 'E': {
+		case EPRIO: {
 			int quantum = sched->get_quantum();
 			printf("PREPRIO %d\n", quantum);
 			break;
@@ -710,7 +732,7 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				//comes from READY
 				//create event for next step, it is either preempt or RUNNING->BLOCK
 				proc->state_ts = cur_time;
-				int cb = des->put_event(proc, STATE_RUNNING, rand_num, rand_ite, cur_time, &cur_end_time);
+				int cb = des->put_event(proc, STATE_RUNNING, rand_num, rand_ite, cur_time, &cur_end_time, false);
 				
 				//print READY->RUNNING info
 				create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, cb, 0, proc->cpu_all_time, proc->prio);
@@ -736,7 +758,7 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 					CALL_SCHEDULER = true;
 					if (proc->cpu_all_time > 0){
 						//create an event for BLOCK->READY
-						int ib = des->put_event(proc, STATE_BLOCK, rand_num, rand_ite, cur_time, &cur_end_time);
+						int ib = des->put_event(proc, STATE_BLOCK, rand_num, rand_ite, cur_time, &cur_end_time, false);
 						//print RUNNING->BLOCK info
 						create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, 0, ib, proc->cpu_all_time, proc->static_prio);
 						info_vec->push_back(info);
@@ -768,7 +790,7 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				continue;
 			CALL_SCHEDULER = false;
 			if (cur_proc == NULL){
-				cur_proc = sched->get_from_queue(cur_proc, &(des->event_queue), cur_time, &cur_end_time);
+				cur_proc = sched->get_from_queue();
 				if (cur_proc == NULL)
 					continue;
 				//create event to make this process runnable for same time?
@@ -809,7 +831,19 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				}
 			}
 			else{
-				cur_proc = sched->get_from_queue(cur_proc, &(des->event_queue), cur_time, &cur_end_time);
+				Process* new_proc;
+				bool is_preempt = sched->does_preempt(cur_proc, &new_proc, &(des->event_queue), cur_time);
+				if (is_preempt == true){
+					des->remove_event(cur_proc);
+					des->put_event(cur_proc, STATE_RUNNING, rand_num, rand_ite, cur_time, &cur_end_time, is_preempt);	
+				        cur_proc->left_cb = cur_end_time + cur_proc->left_cb - cur_time;
+                        		cur_proc->state_prev_prev = STATE_READY;
+                        		cur_proc->state_prev = STATE_RUNNING;
+                        		cur_proc->state = STATE_READY;
+                        		cur_end_time = cur_time;	
+					cur_proc = new_proc;
+				}
+				//cur_proc = sched->get_from_queue(cur_proc, &(des->event_queue), cur_time, &cur_end_time);
 			}
 		}
 	}
@@ -835,7 +869,7 @@ int get_num(char* sched_name){
 int main (int argc, char* argv[])
 {
 	int c;
-	char sched_type;
+	int sched_type = 0;
 	char* sched_name = NULL;
 	int quantum = 0;
 	int is_print_mid = 0;
@@ -847,40 +881,40 @@ int main (int argc, char* argv[])
 			case 's':{
 					 sched_name = optarg;	
 					 if (sched_name[0] == 'F'){
-						 sched_type = 'F';
+						 sched_type = FCFS;
 						 quantum = maxQuan;
 						 max_prio = maxPrioDef;
 					 }
 					 else if(sched_name[0] == 'L'){
-						 sched_type = 'L';
+						 sched_type = LCFS;
 						 quantum = maxQuan;
 						 max_prio = maxPrioDef;	
 					 }
 					 else if(sched_name[0] == 'S'){
-						 sched_type = 'S';
+						 sched_type = SRTF;
 						 quantum = maxQuan;
 						 max_prio = maxPrioDef;	 
 					 }
 					 else if(sched_name[0] == 'R'){
-						 sched_type = 'R';	
+						 sched_type = RR;	
 						 if(!isdigit(sched_name[1])){
 							 printf("Invalid scheduler param <%s>\n", sched_name);
 							 return -1;
 						 }else{
 							 quantum = get_num(&(sched_name[1]));
 							 if (quantum == 0){
-							 	printf("Invalid scheduler param <%s>\n", sched_name);
-							 	return -1;
+								 printf("Invalid scheduler param <%s>\n", sched_name);
+								 return -1;
 							 }
 							 max_prio = maxPrioDef;
 						 }	
 					 }
 					 else if(sched_name[0] == 'P'){
-						 sched_type = 'P';
+						 sched_type = PRIO;
 						 int len = strlen(sched_name);
 						 char tmp_sched_name [len];
 						 for (int i=0; i < len; i++)
-							tmp_sched_name[i] = sched_name[i];	 
+							 tmp_sched_name[i] = sched_name[i];	 
 						 const char* delim = ":";
 						 char* quantum_str = strtok(&(tmp_sched_name[1]), delim);
 						 char* prio_str = strtok(NULL, delim);
@@ -890,33 +924,33 @@ int main (int argc, char* argv[])
 						 }else{
 							 quantum = get_num(quantum_str);
 							 if (quantum == 0){
-							 	printf("Invalid scheduler param <%s>\n", sched_name);
-							 	return -1;
+								 printf("Invalid scheduler param <%s>\n", sched_name);
+								 return -1;
 							 }
 							 if (prio_str == NULL){
 								 max_prio = maxPrioDef;
 							 }
 							 else{
 								 if (!isdigit(prio_str[0])){
-							 		printf("Invalid scheduler param <%s>\n", sched_name);
+									 printf("Invalid scheduler param <%s>\n", sched_name);
 									 return -1;
 								 }
 								 else{
 									 max_prio = get_num(prio_str);
-							 		 if (max_prio == 0){
-							 			printf("Invalid scheduler param <%s>\n", sched_name);
-							 			return -1;
-							 		 }
+									 if (max_prio == 0){
+										 printf("Invalid scheduler param <%s>\n", sched_name);
+										 return -1;
+									 }
 								 }
 							 }
 						 }
 					 }
 					 else if(sched_name[0] == 'E'){
-						 sched_type = 'E';
+						 sched_type = EPRIO;
 						 int len = strlen(sched_name);
 						 char tmp_sched_name [len];
 						 for (int i=0; i < len; i++)
-							tmp_sched_name[i] = sched_name[i];	 
+							 tmp_sched_name[i] = sched_name[i];	 
 						 const char* delim = ":";
 						 char* quantum_str = strtok(&(tmp_sched_name[1]), delim);
 						 char* prio_str = strtok(NULL, delim);
@@ -926,23 +960,23 @@ int main (int argc, char* argv[])
 						 }else{
 							 quantum = get_num(quantum_str);
 							 if (quantum == 0){
-							 	printf("Invalid scheduler param <%s>\n", sched_name);
-							 	return -1;
+								 printf("Invalid scheduler param <%s>\n", sched_name);
+								 return -1;
 							 }
 							 if (prio_str == NULL){
 								 max_prio = maxPrioDef;
 							 }
 							 else{
 								 if (!isdigit(prio_str[0])){
-							 		printf("Invalid scheduler param <%s>\n", sched_name);
+									 printf("Invalid scheduler param <%s>\n", sched_name);
 									 return -1;
 								 }
 								 else{
 									 max_prio = get_num(prio_str);
-							 		 if (max_prio == 0){
-							 			printf("Invalid scheduler param <%s>\n", sched_name);
-							 			return -1;
-							 		 }
+									 if (max_prio == 0){
+										 printf("Invalid scheduler param <%s>\n", sched_name);
+										 return -1;
+									 }
 								 }
 							 }
 						 }
@@ -957,57 +991,63 @@ int main (int argc, char* argv[])
 				 is_print_mid = 1;
 				 break;
 			case '?':
-				printf("Usage: ./sched [-v] [-t] [-e] [-p] [-i] [-s sched] inputfile randomfile\n");
-				printf("   -v enables verbose\n");
-				printf("   -t enables scheduler details\n");
-				printf("   -e enables event tracing\n");
-				printf("   -p enables E scheduler preempton tracing\n");
-				printf("   -i single steps event by event\n");
-				return -1;
+				 printf("Usage: ./sched [-v] [-t] [-e] [-p] [-i] [-s sched] inputfile randomfile\n");
+				 printf("   -v enables verbose\n");
+				 printf("   -t enables scheduler details\n");
+				 printf("   -e enables event tracing\n");
+				 printf("   -p enables E scheduler preempton tracing\n");
+				 printf("   -i single steps event by event\n");
+				 return -1;
 		}
 	}
 
-        switch (sched_type) {
-        case 'F':{
-	    Scheduler_FCFS* fcfs_scheduler = new Scheduler_FCFS();  
-	    fcfs_scheduler->set_quantum(quantum);
-            sched = fcfs_scheduler;
-            break;
-		}
-        case 'L':{
-	    Scheduler_LCFS* lcfs_scheduler = new Scheduler_LCFS();  
-	    lcfs_scheduler->set_quantum(quantum);
-            sched = lcfs_scheduler;
-            break;
-		}
-        case 'S':{
-	    Scheduler_SRTF* srtf_scheduler = new Scheduler_SRTF();  
-	    srtf_scheduler->set_quantum(quantum);
-            sched = srtf_scheduler;
-            break;
-		}
-        case 'R':{
-	    Scheduler_RR* rr_scheduler = new Scheduler_RR();  
-	    rr_scheduler->set_quantum(quantum);
-            sched = rr_scheduler;
-            break;
-		}
-        case 'P':{
-	    Scheduler_PRIO* prio_scheduler = new Scheduler_PRIO(max_prio);  
-	    prio_scheduler->set_quantum(quantum);
-            sched = prio_scheduler;
-            break;
-		}
-        case 'E':{
-	    Scheduler_EPRIO* eprio_scheduler = new Scheduler_EPRIO(max_prio);  
-	    eprio_scheduler->set_quantum(quantum);
-            sched = eprio_scheduler;
-            break;
-		}
-        }
+	if (sched_type == 0){
+		sched_type = FCFS;
+		quantum = maxQuan;
+		max_prio = maxPrioDef;
+	}
 
-        //open input file
-        if (argc < optind+2){
+			switch (sched_type) {
+				case FCFS:{
+						  Scheduler_FCFS* fcfs_scheduler = new Scheduler_FCFS();  
+						  fcfs_scheduler->set_quantum(quantum);
+						  sched = fcfs_scheduler;
+						  break;
+					  }
+				case LCFS:{
+						  Scheduler_LCFS* lcfs_scheduler = new Scheduler_LCFS();  
+						  lcfs_scheduler->set_quantum(quantum);
+						  sched = lcfs_scheduler;
+						  break;
+					  }
+				case SRTF:{
+						  Scheduler_SRTF* srtf_scheduler = new Scheduler_SRTF();  
+						  srtf_scheduler->set_quantum(quantum);
+						  sched = srtf_scheduler;
+						  break;
+					  }
+				case RR:{
+						Scheduler_RR* rr_scheduler = new Scheduler_RR();  
+						rr_scheduler->set_quantum(quantum);
+						sched = rr_scheduler;
+						break;
+					}
+				case PRIO:{
+						  Scheduler_PRIO* prio_scheduler = new Scheduler_PRIO(max_prio);  
+						  prio_scheduler->set_quantum(quantum);
+						  sched = prio_scheduler;
+						  break;
+					  }
+				case EPRIO:{
+						   Scheduler_EPRIO* eprio_scheduler = new Scheduler_EPRIO(max_prio);  
+						   eprio_scheduler->set_quantum(quantum);
+						   sched = eprio_scheduler;
+						   break;
+					   }
+			}
+
+	//open input file
+	if (argc < optind+2){
 		printf("input arguments not enough\n");
 		return -1;
 	}
@@ -1017,9 +1057,9 @@ int main (int argc, char* argv[])
 		printf("no open input file\n");
 		return -1;	
 	}
-        
+
 	//open rand file 
-        char* rand_file_path = argv[optind];
+	char* rand_file_path = argv[optind];
 	ifstream rand_file(rand_file_path);
 	if (!rand_file.is_open()){
 		printf("no open rand file\n");
@@ -1029,19 +1069,19 @@ int main (int argc, char* argv[])
 	char tmp [16] = {0};
 	rand_file.getline(tmp, sizeof(tmp));
 	int randSize =  atoi(tmp);
-	
+
 	vector<long> rand_num;
 	int cnt = 0;
 	while (rand_file.peek() != EOF){		
 		char tmp [16] = {0};
-        	rand_file.getline(tmp, sizeof(tmp));	
-        	rand_num.push_back(atol(tmp));
+		rand_file.getline(tmp, sizeof(tmp));	
+		rand_num.push_back(atol(tmp));
 		cnt++;
 	}
-	
-        vector<long>::iterator rand_ite = rand_num.begin();
-        //initialize all process and their created->ready event 
- 	class DES_layer des;
+
+	vector<long>::iterator rand_ite = rand_num.begin();
+	//initialize all process and their created->ready event 
+	class DES_layer des;
 	init_event_proc(&file, max_prio, &rand_num, &rand_ite, &des);
 
 	vector<Process> stat_proc_info;
@@ -1056,6 +1096,6 @@ int main (int argc, char* argv[])
 	print_sum(sched_type, &stat_proc_info, &info_vec);
 	return 0; 	
 
-	
+
 }
 
