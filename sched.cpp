@@ -15,39 +15,39 @@ Event* DES_layer::get_event(){
 }
 
 int DES_layer::put_event(Process* process, int old_state, int state_prev_prev, vector<long>* rand_num, vector<long>::iterator* rand_ite, int cur_time, int* cur_end_time, bool is_preempt){
-        Event event;
+	Event event;
 	event.process = process;
 	event.old_state = old_state;
 	int run_time = 0;
 	if (is_preempt == true){
-                        event.old_state = STATE_RUNNING;
-                        event.new_state = STATE_READY;
-                        event.transition = TRANS_TO_PREEMPT;
-                        event.timestamp = cur_time;
+		event.old_state = STATE_RUNNING;
+		event.new_state = STATE_READY;
+		event.transition = TRANS_TO_PREEMPT;
+		event.timestamp = cur_time;
 	}
 	else if (event.old_state == STATE_READY and state_prev_prev == STATE_CREATED){
-					if (process->state_ts > *cur_end_time)
-						event.timestamp = process->state_ts;
-					else
-						event.timestamp = *cur_end_time;
-					event.new_state = STATE_RUNNING;
-					event.transition = TRANS_TO_RUNNING;
+		if (process->state_ts > *cur_end_time)
+			event.timestamp = process->state_ts;
+		else
+			event.timestamp = *cur_end_time;
+		event.new_state = STATE_RUNNING;
+		event.transition = TRANS_TO_RUNNING;
 	}
 	else if (event.old_state == STATE_READY and state_prev_prev == STATE_BLOCK){
 		if (process->state_ts > *cur_end_time)
-						event.timestamp = process->state_ts;
-					else
-						event.timestamp = *cur_end_time;
-					event.new_state = STATE_RUNNING;
-					event.transition = TRANS_TO_RUNNING;
+			event.timestamp = process->state_ts;
+		else
+			event.timestamp = *cur_end_time;
+		event.new_state = STATE_RUNNING;
+		event.transition = TRANS_TO_RUNNING;
 	}
 	else if (event.old_state == STATE_READY and state_prev_prev == STATE_RUNNING){
-					if (process->state_ts > *cur_end_time)
-						event.timestamp = process->state_ts;
-					else
-						event.timestamp = *cur_end_time;
-					event.new_state = STATE_RUNNING;
-					event.transition = TRANS_TO_RUNNING;
+		if (process->state_ts > *cur_end_time)
+			event.timestamp = process->state_ts;
+		else
+			event.timestamp = *cur_end_time;
+		event.new_state = STATE_RUNNING;
+		event.transition = TRANS_TO_RUNNING;
 	}
 	else if (event.old_state == STATE_RUNNING){
 		int quantum = sched->get_quantum();
@@ -181,7 +181,7 @@ int init_event_proc(ifstream* file, int max_prio, vector<long>* rand_num, vector
 		((*ite).process)->prio = ((*ite).process)->static_prio - 1;
 		ite++;
 	}
-	
+
 	return 0;	
 }
 
@@ -209,13 +209,13 @@ int my_random(int up_limit, vector<long>* rand_num, vector<long>::iterator* rand
 	int rand_int = *(*rand_ite);
 	if (up_limit == 0)
 		up_limit = defLimit;
-	 int rand_res = ((**rand_ite) % up_limit) + 1;
-	 //printf("rand_res %d\n", rand_res);
-	 if (*rand_ite != rand_num->end())
-	 	(*rand_ite)++;
-	 else 
+	int rand_res = ((**rand_ite) % up_limit) + 1;
+	//printf("rand_res %d\n", rand_res);
+	if (*rand_ite != rand_num->end())
+		(*rand_ite)++;
+	else 
 		throw -1;
-	 return rand_res;
+	return rand_res;
 }
 
 
@@ -256,18 +256,18 @@ bool Scheduler::does_preempt(Process* cur_proc, Process** new_proc, deque<Event>
 }
 
 void Scheduler_FCFS::add_to_queue(Process* proc) {
-        if (proc->prio == -1)
-            proc->prio = proc->static_prio - 1;
+	if (proc->prio == -1)
+		proc->prio = proc->static_prio - 1;
 	run_queue.push_back(proc);
 }
 
 Process* Scheduler_FCFS::get_from_queue() {
-        if (run_queue.size() != 0){
-                Process* tmp = run_queue.front();
-                run_queue.pop_front();
-                return tmp;
-        }
-        return NULL;
+	if (run_queue.size() != 0){
+		Process* tmp = run_queue.front();
+		run_queue.pop_front();
+		return tmp;
+	}
+	return NULL;
 }
 
 int Scheduler_FCFS::get_quantum() {
@@ -289,12 +289,12 @@ void Scheduler_LCFS::add_to_queue(Process* proc) {
 }
 
 Process* Scheduler_LCFS::get_from_queue() {
-        if (run_queue.size() != 0){
-                Process* tmp = run_queue.back();
-                run_queue.pop_back();
-                return tmp;
-        }
-        return NULL;
+	if (run_queue.size() != 0){
+		Process* tmp = run_queue.back();
+		run_queue.pop_back();
+		return tmp;
+	}
+	return NULL;
 }
 
 int Scheduler_LCFS::get_quantum() {
@@ -310,32 +310,32 @@ bool Scheduler_LCFS::does_preempt(Process* cur_proc, Process** new_proc, deque<E
 }
 
 void Scheduler_SRTF::add_to_queue(Process* proc) {
-        if (proc->prio == -1)
-            proc->prio = proc->static_prio - 1;
-        deque<Process*>::iterator ite = run_queue.begin();
-        if(run_queue.size() == 0)
-                run_queue.push_back(proc);
-        else{
-                while(ite != run_queue.end()){
-                if (proc->cpu_all_time >= (*ite)->cpu_all_time)
-                        ite++;
-                else
-                        break;
-                }
-                if (ite != run_queue.end())
-                        run_queue.insert(ite, proc);
-                else
-                        run_queue.push_back(proc);
-        }
+	if (proc->prio == -1)
+		proc->prio = proc->static_prio - 1;
+	deque<Process*>::iterator ite = run_queue.begin();
+	if(run_queue.size() == 0)
+		run_queue.push_back(proc);
+	else{
+		while(ite != run_queue.end()){
+			if (proc->cpu_all_time >= (*ite)->cpu_all_time)
+				ite++;
+			else
+				break;
+		}
+		if (ite != run_queue.end())
+			run_queue.insert(ite, proc);
+		else
+			run_queue.push_back(proc);
+	}
 }
 
 Process* Scheduler_SRTF::get_from_queue() {
-        if (run_queue.size() != 0){
-                Process* tmp = run_queue.front();
-                run_queue.pop_front();
-                return tmp;
-        }
-        return NULL;
+	if (run_queue.size() != 0){
+		Process* tmp = run_queue.front();
+		run_queue.pop_front();
+		return tmp;
+	}
+	return NULL;
 }
 
 int Scheduler_SRTF::get_quantum() {
@@ -356,12 +356,12 @@ void Scheduler_RR::add_to_queue(Process* proc) {
 }
 
 Process* Scheduler_RR::get_from_queue() {
-        if (run_queue.size() != 0){
-                Process* tmp = run_queue.front();
-                run_queue.pop_front();
-                return tmp;
-        }
-        return NULL;
+	if (run_queue.size() != 0){
+		Process* tmp = run_queue.front();
+		run_queue.pop_front();
+		return tmp;
+	}
+	return NULL;
 }
 
 int Scheduler_RR::get_quantum() {
@@ -377,22 +377,22 @@ bool Scheduler_RR::does_preempt(Process* cur_proc, Process** new_proc, deque<Eve
 }
 
 Scheduler_PRIO::Scheduler_PRIO(int prio){
-        max_prio = prio;
-        for (int i=0; i < max_prio; i++){
-                deque<Process*> run_queue;
-                deque<Process*> expire_queue;
-                run_queue_list.push_back(run_queue);
-                expire_queue_list.push_back(expire_queue);
-        }
+	max_prio = prio;
+	for (int i=0; i < max_prio; i++){
+		deque<Process*> run_queue;
+		deque<Process*> expire_queue;
+		run_queue_list.push_back(run_queue);
+		expire_queue_list.push_back(expire_queue);
+	}
 }
 
 void Scheduler_PRIO::add_to_queue(Process* proc) {
-        if (proc->prio == -1){
-                proc->prio = proc->static_prio - 1;
-                (expire_queue_list[proc->prio]).push_back(proc);
-        }
-        else
-                (run_queue_list[proc->prio]).push_back(proc);
+	if (proc->prio == -1){
+		proc->prio = proc->static_prio - 1;
+		(expire_queue_list[proc->prio]).push_back(proc);
+	}
+	else
+		(run_queue_list[proc->prio]).push_back(proc);
 }
 
 Process* Scheduler_PRIO::get_from_queue() {
@@ -437,51 +437,51 @@ bool Scheduler_PRIO::does_preempt(Process* cur_proc, Process** new_proc, deque<E
 }
 
 Scheduler_EPRIO::Scheduler_EPRIO(int prio){
-        max_prio = prio;
-        for (int i=0; i < max_prio; i++){
-                deque<Process*> run_queue;
-                deque<Process*> expire_queue;
-                run_queue_list.push_back(run_queue);
-                expire_queue_list.push_back(expire_queue);
-        }
+	max_prio = prio;
+	for (int i=0; i < max_prio; i++){
+		deque<Process*> run_queue;
+		deque<Process*> expire_queue;
+		run_queue_list.push_back(run_queue);
+		expire_queue_list.push_back(expire_queue);
+	}
 }
 
 void Scheduler_EPRIO::add_to_queue(Process* proc) {
-        if (proc->prio == -1){
-                proc->prio = proc->static_prio - 1;
-                (expire_queue_list[proc->prio]).push_back(proc);
-        }
-        else
-                (run_queue_list[proc->prio]).push_back(proc);
+	if (proc->prio == -1){
+		proc->prio = proc->static_prio - 1;
+		(expire_queue_list[proc->prio]).push_back(proc);
+	}
+	else
+		(run_queue_list[proc->prio]).push_back(proc);
 }
 
 Process* Scheduler_EPRIO::get_from_queue() {
-        Process* tmp = NULL;
-                for (int i=max_prio-1; i >=0; i--){
-                        if ((run_queue_list[i]).size() > 0){
-                                tmp = run_queue_list[i].front();
-                                run_queue_list[i].pop_front();
-                                break;
-                        }
-                }
-                if (tmp == NULL){
-                        for(int i=max_prio-1; i >=0; i--){
-                                if ((run_queue_list[i]).size() == 0){
-                                        deque<Process*> tt = run_queue_list[i];
-                                        run_queue_list[i] = expire_queue_list[i];
-                                        expire_queue_list[i] = tt;
+	Process* tmp = NULL;
+	for (int i=max_prio-1; i >=0; i--){
+		if ((run_queue_list[i]).size() > 0){
+			tmp = run_queue_list[i].front();
+			run_queue_list[i].pop_front();
+			break;
+		}
+	}
+	if (tmp == NULL){
+		for(int i=max_prio-1; i >=0; i--){
+			if ((run_queue_list[i]).size() == 0){
+				deque<Process*> tt = run_queue_list[i];
+				run_queue_list[i] = expire_queue_list[i];
+				expire_queue_list[i] = tt;
 
-                                }
-                        }
-                        for (int i=max_prio-1; i >=0; i--){
-                                if ((run_queue_list[i]).size() > 0){
-                                        tmp = run_queue_list[i].front();
-                                        run_queue_list[i].pop_front();
-                                        break;
-                                }
-                        }
-                }
-        return tmp;
+			}
+		}
+		for (int i=max_prio-1; i >=0; i--){
+			if ((run_queue_list[i]).size() > 0){
+				tmp = run_queue_list[i].front();
+				run_queue_list[i].pop_front();
+				break;
+			}
+		}
+	}
+	return tmp;
 }
 
 int Scheduler_EPRIO::get_quantum() {
@@ -489,21 +489,21 @@ int Scheduler_EPRIO::get_quantum() {
 }
 
 void Scheduler_EPRIO::set_quantum(int num) {
- quantum = num;
+	quantum = num;
 }
 
 bool Scheduler_EPRIO::does_preempt(Process* cur_proc, Process** new_proc, deque<Event>* event_queue, int cur_time){
 	bool is_preempt = false;
 	Process* tmp;
-       for (int i=max_prio-1; i >=0; i--){
-                        if ((run_queue_list[i]).size() > 0){
-                                if (cur_proc->prio < i){
-                                	is_preempt = true;
-					tmp = run_queue_list[i].front();
-                                        break;
-                                }
-                        }
-                }
+	for (int i=max_prio-1; i >=0; i--){
+		if ((run_queue_list[i]).size() > 0){
+			if (cur_proc->prio < i){
+				is_preempt = true;
+				tmp = run_queue_list[i].front();
+				break;
+			}
+		}
+	}
 	deque<Event>::iterator ite = event_queue->begin();
 	while(ite != event_queue->end()){
 		if ((*ite).process == cur_proc){
@@ -522,7 +522,7 @@ bool Scheduler_EPRIO::does_preempt(Process* cur_proc, Process** new_proc, deque<
 int create_info (MidInfo* info, int start_time, int process_num, int last_time, int prev_state, int next_state,int cb, int ib, int rem, int prio) {
 	info->s_time = start_time;
 	info->process = process_num;
- 	info->last_time = last_time;
+	info->last_time = last_time;
 	info->prev_state = prev_state;
 	info->next_state = next_state;
 	info->cb = cb;
@@ -565,21 +565,21 @@ void print_info(MidInfo info){
 			next_state = "BLOCK";
 			break;
 	}
-	
+
 	printf("%d %d %d:", info.s_time, info.process, info.last_time);
 	if (info.rem == 0) 
 		printf(" Done\n");
 	else{
 		printf(" %s -> %s", prev_state.c_str(), next_state.c_str());
-	if (info.prev_state == STATE_CREATED | info.prev_state == STATE_BLOCK)
-		printf("\n");
-	else if (info.prev_state == STATE_READY)
-		printf(" cb=%d rem=%d prio=%d\n", info.cb, info.rem, info.prio);
-	else if (info.prev_state == STATE_RUNNING and info.next_state == STATE_BLOCK)
-		printf("  ib=%d rem=%d\n", info.ib, info.rem);
-	else if (info.prev_state == STATE_RUNNING and info.next_state == STATE_READY)
-		printf("  cb=%d rem=%d prio=%d\n", info.cb, info.rem, info.prio);
-	
+		if (info.prev_state == STATE_CREATED | info.prev_state == STATE_BLOCK)
+			printf("\n");
+		else if (info.prev_state == STATE_READY)
+			printf(" cb=%d rem=%d prio=%d\n", info.cb, info.rem, info.prio);
+		else if (info.prev_state == STATE_RUNNING and info.next_state == STATE_BLOCK)
+			printf("  ib=%d rem=%d\n", info.ib, info.rem);
+		else if (info.prev_state == STATE_RUNNING and info.next_state == STATE_READY)
+			printf("  cb=%d rem=%d prio=%d\n", info.cb, info.rem, info.prio);
+
 	}	
 }
 
@@ -593,22 +593,21 @@ void get_io_utiliz(vector<MidInfo>* info_vec, double* io_utilize){
 			//if the next ib step is in all the range of the last ib step
 			//do nothing
 			if (info.s_time + info.ib > last_ib_end){
-			  //if the next ib step's start is within last ib start and last ib end
-			  //set a new start
-			  int tmp_start = 0;
-			  if (info.s_time < last_ib_end)
-			  	tmp_start = last_ib_end;
-			  else
-				tmp_start = info.s_time;		
-			
-			*io_utilize += info.s_time + info.ib - tmp_start;
-			last_ib_start = info.s_time;
-			last_ib_end = info.s_time + info.ib;
+				//if the next ib step's start is within last ib start and last ib end
+				//set a new start
+				int tmp_start = 0;
+				if (info.s_time < last_ib_end)
+					tmp_start = last_ib_end;
+				else
+					tmp_start = info.s_time;		
+
+				*io_utilize += info.s_time + info.ib - tmp_start;
+				last_ib_start = info.s_time;
+				last_ib_end = info.s_time + info.ib;
 			}
 		}
 		ite++;
 	}
-	int t = 0;
 }
 
 void print_process(Process proc){
@@ -628,22 +627,22 @@ int print_sum(char sched_type, vector<Process>* stat_info, vector<MidInfo>* info
 			printf("SRTF\n");
 			break;
 		case RR: {
-			int quantum = sched->get_quantum();
-			printf("RR %d\n", quantum);
-			break;
-		}
+				 int quantum = sched->get_quantum();
+				 printf("RR %d\n", quantum);
+				 break;
+			 }
 		case PRIO: {
-			int quantum = sched->get_quantum();
-			printf("PRIO %d\n", quantum);
-			break;
-		}
+				   int quantum = sched->get_quantum();
+				   printf("PRIO %d\n", quantum);
+				   break;
+			   }
 		case EPRIO: {
-			int quantum = sched->get_quantum();
-			printf("PREPRIO %d\n", quantum);
-			break;
-		}
+				    int quantum = sched->get_quantum();
+				    printf("PREPRIO %d\n", quantum);
+				    break;
+			    }
 		default:
-			exit(1);
+			    exit(1);
 	}
 	int total_time = 0;
 	double cpu_utiliz_time = 0.0;
@@ -665,7 +664,7 @@ int print_sum(char sched_type, vector<Process>* stat_info, vector<MidInfo>* info
 		avg_wait_time += proc.cpu_wait_time;
 		cpu_utiliz_time += proc.cpu_utiliz_time;
 		ite++;
-		}
+	}
 	avg_run_time /= cnt;
 	avg_wait_time /= cnt;
 	through_put = 100.00/total_time*cnt;
@@ -691,13 +690,13 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 	int cur_end_time = 0; 
 	while (evt = des->get_event()){
 		Process *proc = evt->process;
-        	int cur_time = evt->timestamp;
+		int cur_time = evt->timestamp;
 		int transition = evt->transition;
 		int timeInPrev = cur_time - proc->state_ts;
 		//delete evt;
 		evt = NULL;
-	        MidInfo info;
-	
+		MidInfo info;
+
 		switch(transition){
 			case TRANS_TO_READY:
 				//must come from BLOCKED or CREATED 
@@ -707,12 +706,12 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				proc->state_ts = cur_time;
 				if (proc->state_prev == STATE_CREATED){
 					//come from CREATED
-				         //print info for CREATED->READY
-				        //proc->state = STATE_READY;
-				        create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, 0, 0, proc->cpu_all_time, proc->prio);	
+					//print info for CREATED->READY
+					//proc->state = STATE_READY;
+					create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, 0, 0, proc->cpu_all_time, proc->prio);	
 					info_vec->push_back(info);
 					//print_info(info);
-					
+
 					proc->state_prev_prev = STATE_CREATED;
 					proc->state_prev = STATE_READY;
 					proc->state = STATE_RUNNING;
@@ -723,7 +722,7 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 					create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, 0, 0, proc->cpu_all_time, proc->static_prio);
 					info_vec->push_back(info);
 					//print_info(info);
-					
+
 					proc->state_prev_prev = STATE_BLOCK;
 					proc->state_prev = STATE_READY;
 					proc->state = STATE_RUNNING;
@@ -732,85 +731,85 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 
 			case TRANS_TO_PREEMPT:
 				{
-				//must come from RUNNING 
-				//add to run queue, no event is generated
-				CALL_SCHEDULER = true;
-				proc->state_ts = cur_time;	
-				proc->cpu_all_time = proc->cpu_all_time - timeInPrev;	
-				proc->cpu_utiliz_time -= proc->left_cb;
-				//print info for RUNNING->READY	
-				create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, proc->left_cb, 0, proc->cpu_all_time, proc->prio);	
-				info_vec->push_back(info);
-				//print_info(info);
-				
-				proc->state_prev_prev = STATE_RUNNING;
-				proc->state_prev = STATE_READY;
-				proc->state = STATE_RUNNING;
-				proc->prio = proc->prio - 1;
-				sched->add_to_queue(proc);	
-				cur_proc = NULL;		
-				break;
+					//must come from RUNNING 
+					//add to run queue, no event is generated
+					CALL_SCHEDULER = true;
+					proc->state_ts = cur_time;	
+					proc->cpu_all_time = proc->cpu_all_time - timeInPrev;	
+					proc->cpu_utiliz_time -= proc->left_cb;
+					//print info for RUNNING->READY	
+					create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, proc->left_cb, 0, proc->cpu_all_time, proc->prio);	
+					info_vec->push_back(info);
+					//print_info(info);
+
+					proc->state_prev_prev = STATE_RUNNING;
+					proc->state_prev = STATE_READY;
+					proc->state = STATE_RUNNING;
+					proc->prio = proc->prio - 1;
+					sched->add_to_queue(proc);	
+					cur_proc = NULL;		
+					break;
 				}
 			case TRANS_TO_RUNNING:
 				{
-				//comes from READY
-				//create event for next step, it is either preempt or RUNNING->BLOCK
-				proc->state_ts = cur_time;
-				int cb = des->put_event(proc, STATE_RUNNING, STATE_READY, rand_num, rand_ite, cur_time, &cur_end_time, false);
-				
-				//print READY->RUNNING info
-				create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, cb, 0, proc->cpu_all_time, proc->prio);
-				info_vec->push_back(info);
-				//print_info(info);
-				//add stat info 
-				proc->cpu_utiliz_time += cb;
-				proc->cpu_wait_time += timeInPrev;
-	
-				//for print info
-				if (proc->left_cb == 0)
-					proc->state = STATE_BLOCK;
-				else
-					proc->state = STATE_READY;
-				proc->state_prev = STATE_RUNNING;
-				proc->state_prev_prev = STATE_READY;
-				break;
-			}
+					//comes from READY
+					//create event for next step, it is either preempt or RUNNING->BLOCK
+					proc->state_ts = cur_time;
+					int cb = des->put_event(proc, STATE_RUNNING, STATE_READY, rand_num, rand_ite, cur_time, &cur_end_time, false);
+
+					//print READY->RUNNING info
+					create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, cb, 0, proc->cpu_all_time, proc->prio);
+					info_vec->push_back(info);
+					//print_info(info);
+					//add stat info 
+					proc->cpu_utiliz_time += cb;
+					proc->cpu_wait_time += timeInPrev;
+
+					//for print info
+					if (proc->left_cb == 0)
+						proc->state = STATE_BLOCK;
+					else
+						proc->state = STATE_READY;
+					proc->state_prev = STATE_RUNNING;
+					proc->state_prev_prev = STATE_READY;
+					break;
+				}
 
 			case TRANS_TO_BLOCK:
-					proc->state_ts = cur_time;
-					proc->cpu_all_time = proc->cpu_all_time - timeInPrev;
-					CALL_SCHEDULER = true;
-					if (proc->cpu_all_time > 0){
-						//create an event for BLOCK->READY
-						int ib = des->put_event(proc, STATE_BLOCK, STATE_RUNNING, rand_num, rand_ite, cur_time, &cur_end_time, false);
-						//print RUNNING->BLOCK info
-						create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, 0, ib, proc->cpu_all_time, proc->static_prio);
-						info_vec->push_back(info);
-						//print_info(info);
-						//add stat info
-						proc->io_time += ib;
+				proc->state_ts = cur_time;
+				proc->cpu_all_time = proc->cpu_all_time - timeInPrev;
+				CALL_SCHEDULER = true;
+				if (proc->cpu_all_time > 0){
+					//create an event for BLOCK->READY
+					int ib = des->put_event(proc, STATE_BLOCK, STATE_RUNNING, rand_num, rand_ite, cur_time, &cur_end_time, false);
+					//print RUNNING->BLOCK info
+					create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, 0, ib, proc->cpu_all_time, proc->static_prio);
+					info_vec->push_back(info);
+					//print_info(info);
+					//add stat info
+					proc->io_time += ib;
 
-						//set process state for next session
-						proc->state = STATE_READY;
-						proc->state_prev = STATE_BLOCK;
-						proc->state_prev_prev = STATE_RUNNING;
-					}
-					else{
-						create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, timeInPrev, 0, proc->cpu_all_time, proc->prio);
-						info_vec->push_back(info);
-						//print_info(info);
-					        //set statistical info
-					        proc->finish_time = cur_time;
-						proc->run_time = proc->finish_time - proc->start_time;
-						insert_process(stat_info, proc);	
-					}
-					proc->prio = proc->static_prio - 1;
-					cur_proc = NULL;
+					//set process state for next session
+					proc->state = STATE_READY;
+					proc->state_prev = STATE_BLOCK;
+					proc->state_prev_prev = STATE_RUNNING;
+				}
+				else{
+					create_info(&info, proc->state_ts, proc->num, timeInPrev, proc->state_prev, proc->state, timeInPrev, 0, proc->cpu_all_time, proc->prio);
+					info_vec->push_back(info);
+					//print_info(info);
+					//set statistical info
+					proc->finish_time = cur_time;
+					proc->run_time = proc->finish_time - proc->start_time;
+					insert_process(stat_info, proc);	
+				}
+				proc->prio = proc->static_prio - 1;
+				cur_proc = NULL;
 				break;
 		}
 		if(CALL_SCHEDULER){
 			if (des->get_next_event_time() == cur_time)
-			//process next event from event queue
+				//process next event from event queue
 				continue;
 			CALL_SCHEDULER = false;
 			if (cur_proc == NULL){
@@ -820,11 +819,11 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				//create event to make this process runnable for same time?
 				//create event for READY->RUNNING
 				if (cur_proc->state_prev == STATE_READY and cur_proc->state_prev_prev == STATE_CREATED){
-                 			des->put_event(cur_proc, STATE_READY, STATE_CREATED, rand_num, rand_ite, cur_time, &cur_end_time, false);
+					des->put_event(cur_proc, STATE_READY, STATE_CREATED, rand_num, rand_ite, cur_time, &cur_end_time, false);
 				}else if (cur_proc->state_prev == STATE_READY and cur_proc->state_prev_prev == STATE_BLOCK){
-                 			des->put_event(cur_proc, STATE_READY, STATE_BLOCK, rand_num, rand_ite, cur_time, &cur_end_time, false);
+					des->put_event(cur_proc, STATE_READY, STATE_BLOCK, rand_num, rand_ite, cur_time, &cur_end_time, false);
 				}else if (cur_proc->state_prev == STATE_READY and cur_proc->state_prev_prev == STATE_RUNNING){
-                 			des->put_event(cur_proc, STATE_READY, STATE_RUNNING, rand_num, rand_ite, cur_time, &cur_end_time, false);
+					des->put_event(cur_proc, STATE_READY, STATE_RUNNING, rand_num, rand_ite, cur_time, &cur_end_time, false);
 				}
 			}
 			else{
@@ -833,11 +832,11 @@ int simulation(ifstream* file, vector<long>* rand_num, vector<long>::iterator* r
 				if (is_preempt == true){
 					des->remove_event(cur_proc);
 					des->put_event(cur_proc, STATE_RUNNING, STATE_READY, rand_num, rand_ite, cur_time, &cur_end_time, is_preempt);	
-				        cur_proc->left_cb = cur_end_time + cur_proc->left_cb - cur_time;
-                        		cur_proc->state_prev_prev = STATE_READY;
-                        		cur_proc->state_prev = STATE_RUNNING;
-                        		cur_proc->state = STATE_READY;
-                        		cur_end_time = cur_time;	
+					cur_proc->left_cb = cur_end_time + cur_proc->left_cb - cur_time;
+					cur_proc->state_prev_prev = STATE_READY;
+					cur_proc->state_prev = STATE_RUNNING;
+					cur_proc->state = STATE_READY;
+					cur_end_time = cur_time;	
 					cur_proc = new_proc;
 				}
 			}
@@ -1003,44 +1002,44 @@ int main (int argc, char* argv[])
 		max_prio = maxPrioDef;
 	}
 
-			switch (sched_type) {
-				case FCFS:{
-						  Scheduler_FCFS* fcfs_scheduler = new Scheduler_FCFS();  
-						  fcfs_scheduler->set_quantum(quantum);
-						  sched = fcfs_scheduler;
-						  break;
-					  }
-				case LCFS:{
-						  Scheduler_LCFS* lcfs_scheduler = new Scheduler_LCFS();  
-						  lcfs_scheduler->set_quantum(quantum);
-						  sched = lcfs_scheduler;
-						  break;
-					  }
-				case SRTF:{
-						  Scheduler_SRTF* srtf_scheduler = new Scheduler_SRTF();  
-						  srtf_scheduler->set_quantum(quantum);
-						  sched = srtf_scheduler;
-						  break;
-					  }
-				case RR:{
-						Scheduler_RR* rr_scheduler = new Scheduler_RR();  
-						rr_scheduler->set_quantum(quantum);
-						sched = rr_scheduler;
-						break;
-					}
-				case PRIO:{
-						  Scheduler_PRIO* prio_scheduler = new Scheduler_PRIO(max_prio);  
-						  prio_scheduler->set_quantum(quantum);
-						  sched = prio_scheduler;
-						  break;
-					  }
-				case EPRIO:{
-						   Scheduler_EPRIO* eprio_scheduler = new Scheduler_EPRIO(max_prio);  
-						   eprio_scheduler->set_quantum(quantum);
-						   sched = eprio_scheduler;
-						   break;
-					   }
+	switch (sched_type) {
+		case FCFS:{
+				  Scheduler_FCFS* fcfs_scheduler = new Scheduler_FCFS();  
+				  fcfs_scheduler->set_quantum(quantum);
+				  sched = fcfs_scheduler;
+				  break;
+			  }
+		case LCFS:{
+				  Scheduler_LCFS* lcfs_scheduler = new Scheduler_LCFS();  
+				  lcfs_scheduler->set_quantum(quantum);
+				  sched = lcfs_scheduler;
+				  break;
+			  }
+		case SRTF:{
+				  Scheduler_SRTF* srtf_scheduler = new Scheduler_SRTF();  
+				  srtf_scheduler->set_quantum(quantum);
+				  sched = srtf_scheduler;
+				  break;
+			  }
+		case RR:{
+				Scheduler_RR* rr_scheduler = new Scheduler_RR();  
+				rr_scheduler->set_quantum(quantum);
+				sched = rr_scheduler;
+				break;
 			}
+		case PRIO:{
+				  Scheduler_PRIO* prio_scheduler = new Scheduler_PRIO(max_prio);  
+				  prio_scheduler->set_quantum(quantum);
+				  sched = prio_scheduler;
+				  break;
+			  }
+		case EPRIO:{
+				   Scheduler_EPRIO* eprio_scheduler = new Scheduler_EPRIO(max_prio);  
+				   eprio_scheduler->set_quantum(quantum);
+				   sched = eprio_scheduler;
+				   break;
+			   }
+	}
 
 	//open input file
 	if (argc < optind+2){
